@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/my", label: "今日の入力" },
   { href: "/my/history", label: "自分の実績" },
-  { href: "/my/leads", label: "LINE・面談" },
+  { href: "/my/leads", label: "LINE誘導" },
   { href: "/my/template", label: "送付文章" },
 ];
 

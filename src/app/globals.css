@@ -913,3 +913,43 @@ details.rev summary {
     font-size: 12px;
   }
 }
+
+/* --- リード管理：到達フラグの入力 ------------------------------- */
+
+.milestones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.milestone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+label.check input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* 到達済みの日付ボタン（クリックで取り消し） */
+.btn.done {
+  background: var(--ok-soft);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+  font-variant-numeric: tabular-nums;
+}

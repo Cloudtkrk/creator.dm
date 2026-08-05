@@ -82,6 +82,23 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = Object.fromEntries(
   LEAD_STAGES.map((s) => [s.value, s.label]),
 ) as Record<LeadStage, string>;
 
+/**
+ * ステージは日付から自動的に決まる。手入力のステージと日付が食い違うと
+ * 報酬集計（日付ベース）と表示がずれるため、常にここで導出する。
+ */
+export function deriveStage(v: {
+  lineAt: string | null;
+  meetingAt: string | null;
+  closedAt: string | null;
+  lost?: boolean;
+}): LeadStage {
+  if (v.closedAt) return "closed";
+  if (v.lost) return "lost";
+  if (v.meetingAt) return "meeting";
+  if (v.lineAt) return "line";
+  return "replied";
+}
+
 export type Lead = {
   id: number;
   user_id: number;

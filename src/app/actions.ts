@@ -18,7 +18,7 @@ import {
   getTemplate,
   getUserByLoginId,
 } from "@/lib/queries";
-import type { LeadStage } from "@/lib/types";
+import { deriveStage } from "@/lib/types";
 
 /* ------------------------------------------------------------- helpers */
 
@@ -308,51 +308,70 @@ export async function deleteTemplate(fd: FormData) {
 
 /* -------------------------------------------------------------- リード */
 
-const STAGE_DATE_COLUMN: Record<LeadStage, string | null> = {
-  replied: "replied_at",
-  line: "line_at",
-  meeting: "meeting_at",
-  closed: "closed_at",
-  lost: null,
-};
+/**
+ * チェックボックスは未チェックだと何も送られてこないため、同名の hidden("0") を
+ * 併記して「その項目がフォームに存在したか」を判別できるようにしている。
+ */
+const hasField = (fd: FormData, key: string) => fd.getAll(key).length > 0;
+const isChecked = (fd: FormData, key: string) =>
+  fd.getAll(key).some((v) => String(v) === "1");
+
+/**
+ * 「有無チェック＋日付」または「日付のみ」のどちらの形でも受け取れるようにする。
+ * チェックを外したら日付は消し、チェックしたのに日付が空なら今日を入れる。
+ */
+function milestoneDate(
+  fd: FormData,
+  flagKey: string,
+  dateKey: string,
+): string | null {
+  if (!hasField(fd, flagKey)) return dateOrNull(fd, dateKey);
+  return isChecked(fd, flagKey) ? (dateOrNull(fd, dateKey) ?? today()) : null;
+}
 
 export async function saveLead(fd: FormData) {
   const user = await requireUser();
+  const isAdmin = user.role === "admin";
   const id = intOrNull(fd, "id");
-  const targetUserId =
-    user.role === "admin" ? num(fd, "user_id") || user.id : user.id;
+  const home = returnTo(fd, "/leads");
+
+  const existing = id ? await getLead(id) : null;
+  if (id && !existing) back(home, "リードが見つかりません。", "err");
+  if (existing) assertCanAccessUser(user, existing.user_id);
+
+  const targetUserId = isAdmin
+    ? num(fd, "user_id") || existing?.user_id || user.id
+    : user.id;
   assertCanAccessUser(user, targetUserId);
 
   const handle = str(fd, "creator_handle").replace(/^@/, "");
   if (!handle) {
-    back(
-      returnTo(fd, "/leads"),
-      "クリエイターのアカウントIDを入力してください。",
-      "err",
-    );
+    back(home, "クリエイターのアカウントIDを入力してください。", "err");
   }
 
-  const stage = (str(fd, "stage") || "replied") as LeadStage;
   const accountId = intOrNull(fd, "account_id");
   if (accountId) await assertOwnsAccount(user, accountId);
 
-  const ts = nowIso();
-  const values = {
-    replied_at: dateOrNull(fd, "replied_at") ?? today(),
-    line_at: dateOrNull(fd, "line_at"),
-    meeting_at: dateOrNull(fd, "meeting_at"),
-    closed_at: dateOrNull(fd, "closed_at"),
-  };
-  // ステージを進めたのに日付が空なら今日で補完する（報酬集計は日付ベースのため）
-  const col = STAGE_DATE_COLUMN[stage];
-  if (col && !values[col as keyof typeof values]) {
-    values[col as keyof typeof values] = today();
-  }
+  const repliedAt = dateOrNull(fd, "replied_at") ?? today();
+  const lineAt = milestoneDate(fd, "has_line", "line_at");
 
-  if (id) {
-    const lead = await getLead(id);
-    if (!lead) back(returnTo(fd, "/leads"), "リードが見つかりません。", "err");
-    assertCanAccessUser(user, lead.user_id);
+  // 面談・成約・見送りは管理者が管理する。運用者の保存では既存の値を保つ。
+  const meetingAt = isAdmin
+    ? milestoneDate(fd, "has_meeting", "meeting_at")
+    : (existing?.meeting_at ?? null);
+  const closedAt = isAdmin
+    ? milestoneDate(fd, "has_closed", "closed_at")
+    : (existing?.closed_at ?? null);
+  const lost = isAdmin
+    ? isChecked(fd, "is_lost")
+    : existing?.stage === "lost";
+
+  const stage = deriveStage({ lineAt, meetingAt, closedAt, lost });
+  const name = isAdmin ? str(fd, "creator_name") : (existing?.creator_name ?? "");
+  const memo = isAdmin ? str(fd, "memo") : (existing?.memo ?? "");
+  const ts = nowIso();
+
+  if (existing) {
     await exec(
       `UPDATE leads SET user_id = ?, account_id = ?, creator_handle = ?, creator_name = ?,
         stage = ?, replied_at = ?, line_at = ?, meeting_at = ?, closed_at = ?, memo = ?, updated_at = ?
@@ -361,18 +380,18 @@ export async function saveLead(fd: FormData) {
         targetUserId,
         accountId,
         handle,
-        str(fd, "creator_name"),
+        name,
         stage,
-        values.replied_at,
-        values.line_at,
-        values.meeting_at,
-        values.closed_at,
-        str(fd, "memo"),
+        repliedAt,
+        lineAt,
+        meetingAt,
+        closedAt,
+        memo,
         ts,
-        id,
+        existing.id,
       ],
     );
-    back(returnTo(fd, "/leads"), `@${handle} を更新しました。`);
+    back(home, `@${handle} を更新しました。`);
   }
 
   await exec(
@@ -383,46 +402,70 @@ export async function saveLead(fd: FormData) {
       targetUserId,
       accountId,
       handle,
-      str(fd, "creator_name"),
+      name,
       stage,
-      values.replied_at,
-      values.line_at,
-      values.meeting_at,
-      values.closed_at,
-      str(fd, "memo"),
+      repliedAt,
+      lineAt,
+      meetingAt,
+      closedAt,
+      memo,
       ts,
       ts,
     ],
   );
-  back(returnTo(fd, "/leads"), `@${handle} を登録しました。`);
+  back(home, `@${handle} を登録しました。`);
 }
 
-/** 一覧からワンクリックでステージを進める。 */
-export async function advanceLead(fd: FormData) {
+const MILESTONE_COLUMN = {
+  line: "line_at",
+  meeting: "meeting_at",
+  closed: "closed_at",
+} as const;
+
+const MILESTONE_LABEL = {
+  line: "LINE誘導",
+  meeting: "面談実施",
+  closed: "成約",
+} as const;
+
+/** 一覧からワンクリックで各段階の到達／取り消しを切り替える。 */
+export async function setLeadMilestone(fd: FormData) {
   const user = await requireUser();
   const id = num(fd, "id");
-  const stage = str(fd, "stage") as LeadStage;
+  const field = str(fd, "field") as keyof typeof MILESTONE_COLUMN;
+  const on = str(fd, "on") === "1";
+  const home = returnTo(fd, "/leads");
+
+  if (!(field in MILESTONE_COLUMN)) back(home, "不正な操作です。", "err");
+  // 面談と成約の記録は管理者のみ
+  if (field !== "line" && user.role !== "admin") {
+    back(home, "面談・成約の記録は管理者のみが行えます。", "err");
+  }
+
   const lead = await getLead(id);
-  if (!lead) back(returnTo(fd, "/leads"), "リードが見つかりません。", "err");
+  if (!lead) back(home, "リードが見つかりません。", "err");
   assertCanAccessUser(user, lead.user_id);
 
-  const col = STAGE_DATE_COLUMN[stage];
-  const ts = nowIso();
-  if (col && !lead[col as keyof typeof lead]) {
-    await exec(
-      `UPDATE leads SET stage = ?, ${col} = ?, updated_at = ? WHERE id = ?`,
-      [stage, today(), ts, id],
-    );
-  } else {
-    await exec("UPDATE leads SET stage = ?, updated_at = ? WHERE id = ?", [
-      stage,
-      ts,
+  const dates = {
+    lineAt: lead.line_at,
+    meetingAt: lead.meeting_at,
+    closedAt: lead.closed_at,
+  };
+  const key = ({ line: "lineAt", meeting: "meetingAt", closed: "closedAt" } as const)[field];
+  dates[key] = on ? (lead[MILESTONE_COLUMN[field]] ?? today()) : null;
+
+  await exec(
+    `UPDATE leads SET ${MILESTONE_COLUMN[field]} = ?, stage = ?, updated_at = ? WHERE id = ?`,
+    [
+      dates[key],
+      deriveStage({ ...dates, lost: lead.stage === "lost" }),
+      nowIso(),
       id,
-    ]);
-  }
+    ],
+  );
   back(
-    returnTo(fd, "/leads"),
-    `@${lead.creator_handle} のステージを更新しました。`,
+    home,
+    `@${lead.creator_handle} を${MILESTONE_LABEL[field]}${on ? "済み" : "未"}にしました。`,
   );
 }
 
