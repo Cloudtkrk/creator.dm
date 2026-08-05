@@ -12,10 +12,13 @@ export default async function LoginPage({
 }) {
   const signedIn = await currentUser();
   if (signedIn) redirect(homePathFor(signedIn));
-  const { msg } = await searchParams;
 
+  // まだ誰も登録されていない＝デプロイ直後なので、初回セットアップへ直接送る
   const n =
     (await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM users"))?.n ?? 0;
+  if (n === 0) redirect("/setup");
+
+  const { msg } = await searchParams;
 
   return (
     <div className="login-page">
@@ -29,13 +32,6 @@ export default async function LoginPage({
         </p>
 
         {msg ? <div className="form-msg error">{msg}</div> : null}
-
-        {n === 0 ? (
-          <div className="form-msg error">
-            まだ誰も登録されていません。
-            <a href="/setup">初回セットアップ</a>から管理者アカウントを作成してください。
-          </div>
-        ) : null}
 
         <form action={login}>
           <label className="field">

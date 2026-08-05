@@ -67,6 +67,18 @@ a {
   text-decoration: none;
 }
 
+/* 本文中のリンクは、リンクだと分かる見た目にする */
+p a,
+.form-msg a,
+.empty a,
+.page-head a:not(.btn):not(.pill),
+td.wrap a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 h1,
 h2,
 h3 {
