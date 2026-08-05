@@ -28,18 +28,20 @@ export default async function RewardDetail({
   const sp = await searchParams;
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : thisMonth();
 
-  const user = getUser(Number(id));
+  const user = await getUser(Number(id));
   if (!user) notFound();
 
-  const r = computeReward(user.id, month);
+  const r = await computeReward(user.id, month);
   const { start, end } = monthRange(month);
-  const series = dailySeries(start, end, user.id);
-  const accounts = listAccounts(user.id);
-  const byAccount = totalsByAccount(start, end);
-  const history = recentMonths(thisMonth(), 6).map((m) => ({
-    month: m,
-    r: computeReward(user.id, m),
-  }));
+  const series = await dailySeries(start, end, user.id);
+  const accounts = await listAccounts(user.id);
+  const byAccount = await totalsByAccount(start, end);
+  const history = await Promise.all(
+    recentMonths(thisMonth(), 6).map(async (m) => ({
+      month: m,
+      r: await computeReward(user.id, m),
+    })),
+  );
 
   const lines = [
     { label: `DM送付 ${r.sent.toLocaleString("ja-JP")}件 × ${yen(r.rate.dm_unit_price)}`, amount: r.dmAmount },

@@ -56,7 +56,7 @@ export default async function SettingsPage({
 }) {
   await requireAdmin();
   const sp = await searchParams;
-  const settings = getSettings();
+  const settings = await getSettings();
 
   return (
     <>

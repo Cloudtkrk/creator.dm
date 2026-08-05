@@ -41,8 +41,8 @@ const pct = (n: number) => `${n.toFixed(1)}%`;
  * 判定は「直近 alert_window_days 日」を対象とし、母数が alert_min_sent
  * 未満の場合は返信率の判定をスキップする（少数だと率が暴れるため）。
  */
-export function computeAlerts(userId?: number): Alert[] {
-  const settings = getSettings();
+export async function computeAlerts(userId?: number): Promise<Alert[]> {
+  const settings = await getSettings();
   const windowDays = settingNumber(settings, "alert_window_days");
   const warnRate = settingNumber(settings, "alert_reply_rate_warn");
   const dangerRate = settingNumber(settings, "alert_reply_rate_danger");
@@ -53,13 +53,29 @@ export function computeAlerts(userId?: number): Alert[] {
   const end = today();
   const start = addDays(end, -(windowDays - 1));
 
-  const users = listUsers().filter(
+  const [allUsers, userTotals, accountTotals, leads, allAccounts] =
+    await Promise.all([
+      listUsers(),
+      totalsByUser(start, end),
+      totalsByAccount(start, end),
+      leadCountsByUser(start, end),
+      listAccounts(),
+    ]);
+
+  const users = allUsers.filter(
     (u) => u.role === "operator" && (userId === undefined || u.id === userId),
   );
-  const userTotals = totalsByUser(start, end);
-  const accountTotals = totalsByAccount(start, end);
-  const leads = leadCountsByUser(start, end);
-  const allAccounts = listAccounts();
+
+  // 日報の未入力判定はユーザーごとに問い合わせが必要なため、まとめて取得しておく
+  const checkStart = addDays(end, -missingDays);
+  const filledByUser = new Map<number, Set<string>>(
+    await Promise.all(
+      users.map(
+        async (u) =>
+          [u.id, await reportedDates(checkStart, addDays(end, -1), u.id)] as const,
+      ),
+    ),
+  );
 
   const alerts: Alert[] = [];
   const push = (u: User, a: Omit<Alert, "userId" | "userName">) =>
@@ -91,8 +107,7 @@ export function computeAlerts(userId?: number): Alert[] {
 
     /* 2. 日報の未入力 */
     if (accounts.length > 0 && missingDays > 0) {
-      const checkStart = addDays(end, -missingDays);
-      const filled = reportedDates(checkStart, addDays(end, -1), u.id);
+      const filled = filledByUser.get(u.id) ?? new Set<string>();
       const missing: string[] = [];
       for (let d = checkStart; d < end; d = addDays(d, 1)) {
         if (!filled.has(d)) missing.push(d);
@@ -138,7 +153,9 @@ export function computeAlerts(userId?: number): Alert[] {
         level: "info",
         kind: "account_banned",
         title: `BANアカウント ${dead.length}件`,
-        detail: dead.map((a) => `@${a.handle}`).join(" / ") + "（代替アカウントの用意を検討）",
+        detail:
+          dead.map((a) => `@${a.handle}`).join(" / ") +
+          "（代替アカウントの用意を検討）",
       });
     }
 

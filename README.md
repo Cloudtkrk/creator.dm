@@ -45,43 +45,61 @@ TikTok Shop のクリエイターへ複数アカウントから DM を送付す�
 ## 技術構成
 
 - Next.js 16（App Router / Server Actions）+ React 19 + TypeScript
-- SQLite（better-sqlite3）— 外部DBサーバー不要。データは `data/creator-dm.db` の1ファイル
+- PostgreSQL（`pg`）— Vercel の Storage から接続した Postgres をそのまま使えます
 - 認証は HMAC 署名付き Cookie ＋ scrypt によるパスワードハッシュ（追加ライブラリなし）
 - グラフは依存パッケージを使わず素の SVG で描画
 
-## セットアップ
+テーブルはアプリの初回アクセス時に自動作成されます（`CREATE TABLE IF NOT EXISTS` を
+アドバイザリロックで直列化しているため、複数のインスタンスが同時に起動しても安全です）。
+マイグレーションコマンドを実行する必要はありません。
+
+## Vercel へのデプロイ
+
+1. Vercel で **Add New → Project** から、このリポジトリを Import する
+2. **Storage → Create Database → Postgres（Neon）** を作成し、このプロジェクトに Connect する
+   - `DATABASE_URL` などの環境変数が自動で追加されます
+3. **Settings → Environment Variables** に `APP_SECRET` を追加する（Production / Preview / Development すべてにチェック）
+   - 値は次のコマンドで生成できます
+     ```bash
+     node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+     ```
+4. **Deployments → Redeploy**（3で環境変数を足したあとに再デプロイが必要です）
+5. 公開された URL を開くと初回セットアップ画面が出るので、管理者アカウントを作成する
+
+以降は管理者でログインし、**メンバー・単価** から送付者を登録して運用を開始します。
+`APP_SECRET` を後から変更すると、全員がログアウトされます（作り直す場合以外は変更しないでください）。
+
+### デモデータを本番に入れたい場合（任意）
+
+Vercel の Postgres の接続文字列をローカルの `.env` に書いてから実行します。運用開始前だけにしてください。
+
+```bash
+npm run seed:demo
+```
+
+## ローカルで動かす
 
 ```bash
 npm install
-cp .env.example .env          # APP_SECRET を必ず変更してください
-npm run seed                  # 初期管理者を作成（admin / admin1234）
-npm run dev                   # http://localhost:3000
+cp .env.example .env    # DATABASE_URL と APP_SECRET を設定
+npm run dev             # http://localhost:3000
 ```
 
-動作イメージを掴みたい場合は、デモデータ（運用者10名 × 5アカウント × 約60日分）を投入できます。
+`DATABASE_URL` には Vercel の開発用ブランチの接続文字列か、手元の PostgreSQL を指定します。
+デモデータ（運用者10名 × 5アカウント × 約60日分）を入れる場合：
 
 ```bash
-npm run seed:demo             # 運用者 op01〜op10 / パスワード password1234
+npm run seed:demo       # 運用者 op01〜op10 / パスワード password1234
 ```
-
-### 本番起動
-
-```bash
-npm run build
-npm start
-```
-
-`next start` はプロジェクトルートから実行してください（起動時に `src/lib/schema.sql` を読み込みます）。
 
 ## 環境変数
 
 | 変数 | 用途 |
 | --- | --- |
-| `APP_SECRET` | セッションCookieの署名鍵。本番では必ず長いランダム文字列に変更してください（未設定だと本番起動時にエラーになります） |
-| `DATABASE_PATH` | SQLite ファイルの保存先。省略時は `./data/creator-dm.db` |
-| `SEED_ADMIN_LOGIN_ID` / `SEED_ADMIN_PASSWORD` | seed 実行時の初期管理者。既にユーザーがいる場合は無視されます |
-
-`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` で `APP_SECRET` を生成できます。
+| `DATABASE_URL` | PostgreSQL の接続文字列。Vercel で Postgres を Connect すると自動で入ります（`POSTGRES_URL` でも可） |
+| `APP_SECRET` | セッションCookieの署名鍵。**必須**。本番で未設定だとエラーになります |
+| `SEED_ADMIN_LOGIN_ID` / `SEED_ADMIN_PASSWORD` | `npm run seed` で作る初期管理者。画面からセットアップする場合は不要です |
+| `DB_POOL_MAX` | 接続プールの上限（既定 3）。通常は変更不要です |
 
 ## 運用のながれ
 
@@ -124,10 +142,10 @@ npm start
 
 ## バックアップ
 
-データは SQLite の1ファイルにまとまっています。定期的に次をコピーしてください。
+Vercel の Postgres（Neon）は自動でバックアップされますが、手元に控えを取る場合は次のようにします。
 
 ```bash
-cp data/creator-dm.db backup/creator-dm-$(date +%Y%m%d).db
+pg_dump "$DATABASE_URL" > backup/creator-dm-$(date +%Y%m%d).sql
 ```
 
 ## 補足

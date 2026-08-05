@@ -39,17 +39,17 @@ export default async function MyLeadsPage({
   const me = await requireOperator();
   const sp = await searchParams;
 
-  const leads = listLeads({
+  const leads = await listLeads({
     userId: me.id,
     stage: sp.stage || undefined,
     keyword: sp.q || undefined,
   });
-  const accounts = listAccounts(me.id);
-  const editing = sp.edit ? getLead(Number(sp.edit)) : null;
+  const accounts = await listAccounts(me.id);
+  const editing = sp.edit ? await getLead(Number(sp.edit)) : null;
   const editable = editing && editing.user_id === me.id ? editing : null;
 
   const { start, end } = monthRange(thisMonth());
-  const counts = leadCounts(start, end, me.id);
+  const counts = await leadCounts(start, end, me.id);
 
   return (
     <>

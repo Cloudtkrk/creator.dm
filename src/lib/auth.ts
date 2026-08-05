@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getDb } from "./db";
+import { queryOne } from "./db";
 import type { User } from "./types";
 
 const COOKIE = "cdm_session";
@@ -90,10 +90,10 @@ export async function currentUser(): Promise<User | null> {
   if (!token) return null;
   const id = decode(token);
   if (!id) return null;
-  const user = getDb()
-    .prepare("SELECT * FROM users WHERE id = ? AND is_active = 1")
-    .get(id) as User | undefined;
-  return user ?? null;
+  return queryOne<User>(
+    "SELECT * FROM users WHERE id = ? AND is_active = 1",
+    [id],
+  );
 }
 
 /** 未ログインなら /login へ飛ばす。 */
@@ -134,10 +134,11 @@ export function assertCanAccessUser(actor: User, targetUserId: number) {
 }
 
 /** アカウントIDから所有者を引いて権限チェックする。 */
-export function assertOwnsAccount(actor: User, accountId: number) {
-  const row = getDb()
-    .prepare("SELECT user_id FROM tiktok_accounts WHERE id = ?")
-    .get(accountId) as { user_id: number } | undefined;
+export async function assertOwnsAccount(actor: User, accountId: number) {
+  const row = await queryOne<{ user_id: number }>(
+    "SELECT user_id FROM tiktok_accounts WHERE id = ?",
+    [accountId],
+  );
   if (!row) throw new Error("アカウントが見つかりません。");
   assertCanAccessUser(actor, row.user_id);
 }

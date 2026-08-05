@@ -28,18 +28,20 @@ export default async function MemberDetail({
   const { id } = await params;
   const sp = await searchParams;
 
-  const user = getUser(Number(id));
+  const user = await getUser(Number(id));
   if (!user) notFound();
 
   const month = thisMonth();
-  const current = getEffectiveRate(user.id, month);
-  const rateCards = listRateCards(user.id);
-  const accounts = listAccounts(user.id);
-  const templates = listTemplates(user.id);
-  const history = recentMonths(month, 6).map((m) => ({
-    month: m,
-    r: computeReward(user.id, m),
-  }));
+  const current = await getEffectiveRate(user.id, month);
+  const rateCards = await listRateCards(user.id);
+  const accounts = await listAccounts(user.id);
+  const templates = await listTemplates(user.id);
+  const history = await Promise.all(
+    recentMonths(month, 6).map(async (m) => ({
+      month: m,
+      r: await computeReward(user.id, m),
+    })),
+  );
   const thisMonthReward = history[0].r;
 
   return (

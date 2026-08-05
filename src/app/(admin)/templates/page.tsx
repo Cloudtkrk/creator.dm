@@ -21,10 +21,10 @@ export default async function TemplatesPage({
   const me = await requireAdmin();
   const sp = await searchParams;
 
-  const users = listUsers();
+  const users = await listUsers();
   const operators = users.filter((u) => u.role === "operator");
   const filterUser = Number(sp.user) || 0;
-  const templates = listTemplates(filterUser || undefined);
+  const templates = await listTemplates(filterUser || undefined);
 
   return (
     <>

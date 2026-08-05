@@ -20,7 +20,18 @@ export default async function MyTemplatePage({
 }) {
   const me = await requireOperator();
   const sp = await searchParams;
-  const templates = listTemplates(me.id);
+  // JSX内では await できないため、履歴と更新者名までまとめて読み込んでおく
+  const templates = await Promise.all(
+    (await listTemplates(me.id)).map(async (tpl) => ({
+      tpl,
+      revisions: await Promise.all(
+        (await listTemplateRevisions(tpl.id)).map(async (r) => ({
+          ...r,
+          changedByName: (await getUser(r.changed_by ?? 0))?.name ?? "不明",
+        })),
+      ),
+    })),
+  );
 
   return (
     <>
@@ -35,8 +46,7 @@ export default async function MyTemplatePage({
 
       <Flash msg={sp.msg} t={sp.t} />
 
-      {templates.map((tpl) => {
-        const revisions = listTemplateRevisions(tpl.id);
+      {templates.map(({ tpl, revisions }) => {
         return (
           <div className="card" key={tpl.id}>
             <div className="card-head">
@@ -85,7 +95,7 @@ export default async function MyTemplatePage({
                 <div key={r.id} style={{ marginTop: 8 }}>
                   <div className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
                     v{r.version} ・ {formatDateTime(r.changed_at)} ・{" "}
-                    {getUser(r.changed_by ?? 0)?.name ?? "不明"}
+                    {r.changedByName}
                     {r.note ? ` ・ ${r.note}` : ""}
                   </div>
                   <div className="template-body" style={{ maxHeight: 160 }}>

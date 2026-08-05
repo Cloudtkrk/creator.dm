@@ -18,17 +18,17 @@ export default async function AccountsPage({
   const me = await requireAdmin();
   const sp = await searchParams;
 
-  const accounts = listAccounts();
-  const users = listUsers();
+  const accounts = await listAccounts();
+  const users = await listUsers();
   const operators = users.filter((u) => u.role === "operator");
   const editing = accounts.find((a) => a.id === Number(sp.edit));
 
   const month = thisMonth();
   const { start, end } = monthRange(month);
-  const monthTotals = totalsByAccount(start, end);
-  const weekTotals = totalsByAccount(addDays(today(), -6), today());
+  const monthTotals = await totalsByAccount(start, end);
+  const weekTotals = await totalsByAccount(addDays(today(), -6), today());
 
-  const settings = getSettings();
+  const settings = await getSettings();
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
 

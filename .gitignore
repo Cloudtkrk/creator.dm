@@ -6,8 +6,5 @@ build/
 .env.local
 *.tsbuildinfo
 next-env.d.ts
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
+backup/
 .DS_Store

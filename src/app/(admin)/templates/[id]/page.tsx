@@ -28,11 +28,17 @@ export default async function TemplateDetail({
   const { id } = await params;
   const sp = await searchParams;
 
-  const template = getTemplate(Number(id));
+  const template = await getTemplate(Number(id));
   if (!template) notFound();
 
-  const owner = getUser(template.user_id);
-  const revisions = listTemplateRevisions(template.id);
+  const owner = await getUser(template.user_id);
+  // JSX内では await できないため、更新者名まで含めて先に読み込む
+  const revisions = await Promise.all(
+    (await listTemplateRevisions(template.id)).map(async (r) => ({
+      ...r,
+      changedByName: (await getUser(r.changed_by ?? 0))?.name ?? "不明",
+    })),
+  );
 
   return (
     <>
@@ -110,7 +116,7 @@ export default async function TemplateDetail({
             <details className="rev" key={r.id} open={r.version === template.version}>
               <summary>
                 v{r.version} ・ {formatDateTime(r.changed_at)} ・{" "}
-                {getUser(r.changed_by ?? 0)?.name ?? "不明"}
+                {r.changedByName}
                 {r.note ? ` ・ ${r.note}` : ""}
               </summary>
               <div className="template-body">{r.body}</div>

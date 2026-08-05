@@ -47,24 +47,24 @@ export default async function LeadsPage({
   const me = await requireAdmin();
   const sp = await searchParams;
 
-  const users = listUsers();
+  const users = await listUsers();
   const operators = users.filter((u) => u.role === "operator");
   const filterUser = Number(sp.user) || undefined;
 
-  const leads = listLeads({
+  const leads = await listLeads({
     userId: filterUser,
     stage: sp.stage || undefined,
     keyword: sp.q || undefined,
   });
 
-  const accounts = listAccounts();
-  const editing = sp.edit ? getLead(Number(sp.edit)) : null;
+  const accounts = await listAccounts();
+  const editing = sp.edit ? await getLead(Number(sp.edit)) : null;
   const editable = editing ?? null;
 
   const month = thisMonth();
   const { start, end } = monthRange(month);
-  const counts = leadCounts(start, end);
-  const monthTotals = totalsInRange(start, end);
+  const counts = await leadCounts(start, end);
+  const monthTotals = await totalsInRange(start, end);
 
   return (
     <>

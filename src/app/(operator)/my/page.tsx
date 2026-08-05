@@ -24,8 +24,8 @@ export default async function MyEntryPage({
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : today();
 
   // 停止中・BANのアカウントは入力対象から外す（誤入力を防ぐ）
-  const accounts = listAccounts(me.id).filter((a) => a.status === "active");
-  const existing = reportsOnDate(date, me.id);
+  const accounts = (await listAccounts(me.id)).filter((a) => a.status === "active");
+  const existing = await reportsOnDate(date, me.id);
 
   const rows: EntryRow[] = accounts.map((a) => {
     const cur = existing.get(a.id);
@@ -42,9 +42,9 @@ export default async function MyEntryPage({
 
   const week = lastNDates(date, 7);
   const series = new Map(
-    dailySeries(week[0], date, me.id).map((d) => [d.date, d]),
+    (await dailySeries(week[0], date, me.id)).map((d) => [d.date, d] as const),
   );
-  const weekTotals = totalsInRange(week[0], date, me.id);
+  const weekTotals = await totalsInRange(week[0], date, me.id);
   const alreadySaved = existing.size > 0;
 
   return (

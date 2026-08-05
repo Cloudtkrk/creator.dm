@@ -15,7 +15,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const user = await requireAdmin();
-  const urgent = computeAlerts().filter((a) => a.level !== "info").length;
+  const urgent = (await computeAlerts()).filter((a) => a.level !== "info").length;
 
   const main = [
     { href: "/", label: "ダッシュボード", icon: "◫" },

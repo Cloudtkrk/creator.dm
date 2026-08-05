@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser, homePathFor } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { queryOne } from "@/lib/db";
 import { login } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,8 @@ export default async function LoginPage({
   if (signedIn) redirect(homePathFor(signedIn));
   const { msg } = await searchParams;
 
-  const { n } = getDb().prepare("SELECT COUNT(*) AS n FROM users").get() as {
-    n: number;
-  };
+  const n =
+    (await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM users"))?.n ?? 0;
 
   return (
     <div className="login-page">
@@ -33,8 +32,8 @@ export default async function LoginPage({
 
         {n === 0 ? (
           <div className="form-msg error">
-            ユーザーが1件も登録されていません。
-            <code>npm run seed</code> を実行して初期管理者を作成してください。
+            まだ誰も登録されていません。
+            <a href="/setup">初回セットアップ</a>から管理者アカウントを作成してください。
           </div>
         ) : null}
 

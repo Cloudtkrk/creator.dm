@@ -32,20 +32,22 @@ export default async function MyHistoryPage({
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : thisMonth();
   const { start, end } = monthRange(month);
 
-  const settings = getSettings();
+  const settings = await getSettings();
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
 
-  const totals = totalsInRange(start, end, me.id);
-  const leads = leadCounts(start, end, me.id);
-  const reward = computeReward(me.id, month);
-  const series = dailySeries(addDays(today(), -29), today(), me.id);
-  const accounts = listAccounts(me.id);
-  const byAccount = totalsByAccount(start, end);
-  const history = recentMonths(thisMonth(), 6).map((m) => ({
-    month: m,
-    r: computeReward(me.id, m),
-  }));
+  const totals = await totalsInRange(start, end, me.id);
+  const leads = await leadCounts(start, end, me.id);
+  const reward = await computeReward(me.id, month);
+  const series = await dailySeries(addDays(today(), -29), today(), me.id);
+  const accounts = await listAccounts(me.id);
+  const byAccount = await totalsByAccount(start, end);
+  const history = await Promise.all(
+    recentMonths(thisMonth(), 6).map(async (m) => ({
+      month: m,
+      r: await computeReward(me.id, m),
+    })),
+  );
 
   return (
     <>

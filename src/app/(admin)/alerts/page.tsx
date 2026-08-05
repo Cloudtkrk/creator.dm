@@ -23,16 +23,16 @@ const LEVEL_LABEL: Record<AlertLevel, string> = {
 export default async function AlertsPage() {
   await requireAdmin();
 
-  const settings = getSettings();
+  const settings = await getSettings();
   const windowDays = settingNumber(settings, "alert_window_days");
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
 
-  const alerts = computeAlerts();
+  const alerts = await computeAlerts();
   const end = today();
   const start = addDays(end, -(windowDays - 1));
-  const operators = listUsers().filter((u) => u.role === "operator");
-  const byUser = totalsByUser(start, end);
+  const operators = (await listUsers()).filter((u) => u.role === "operator");
+  const byUser = await totalsByUser(start, end);
 
   const grouped = new Map<number, typeof alerts>();
   for (const a of alerts) {

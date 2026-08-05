@@ -36,27 +36,30 @@ export default async function Dashboard({
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : thisMonth();
   const { start, end } = monthRange(month);
 
-  const settings = getSettings();
+  const settings = await getSettings();
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
 
   const day = today();
-  const monthTotals = totalsInRange(start, end);
-  const todayTotals = totalsInRange(day, day);
-  const leads = leadCounts(start, end);
-  const series = dailySeries(addDays(day, -29), day);
-  const alerts = computeAlerts().filter((a) => a.level !== "info");
+  const monthTotals = await totalsInRange(start, end);
+  const todayTotals = await totalsInRange(day, day);
+  const leads = await leadCounts(start, end);
+  const series = await dailySeries(addDays(day, -29), day);
+  const alerts = (await computeAlerts()).filter((a) => a.level !== "info");
 
-  const users = listUsers().filter((u) => u.role === "operator");
-  const byUser = totalsByUser(start, end);
-  const leadsByUser = leadCountsByUser(start, end);
-  const accounts = listAccounts();
-  const byAccount = totalsByAccount(start, end);
+  const users = (await listUsers()).filter((u) => u.role === "operator");
+  const byUser = await totalsByUser(start, end);
+  const leadsByUser = await leadCountsByUser(start, end);
+  const accounts = await listAccounts();
+  const byAccount = await totalsByAccount(start, end);
 
-  const rewardTotal = users.reduce(
-    (s, u) => s + computeReward(u.id, month).total,
-    0,
+  // 運用者別サマリーと合計の両方で使うため、報酬は先にまとめて計算しておく
+  const rewards = new Map(
+    await Promise.all(
+      users.map(async (u) => [u.id, await computeReward(u.id, month)] as const),
+    ),
   );
+  const rewardTotal = [...rewards.values()].reduce((s, r) => s + r.total, 0);
 
   return (
     <>
@@ -243,7 +246,7 @@ export default async function Dashboard({
                       <td className="num">{lc.line}</td>
                       <td className="num">{lc.meeting}</td>
                       <td className="num">
-                        {yen(computeReward(u.id, month).total)}
+                        {yen(rewards.get(u.id)?.total ?? 0)}
                       </td>
                     </tr>
                   );

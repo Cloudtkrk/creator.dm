@@ -15,7 +15,7 @@ export async function login(fd: FormData) {
 
   if (!loginId || !password) fail();
 
-  const user = getUserByLoginId(loginId);
+  const user = await getUserByLoginId(loginId);
   if (!user || !user.is_active) fail();
   if (!verifyPassword(password, user!.password_hash)) fail();
 

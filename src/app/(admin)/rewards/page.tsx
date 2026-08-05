@@ -23,10 +23,15 @@ export default async function RewardsPage({
   const sp = await searchParams;
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : thisMonth();
 
-  const operators = listUsers({ includeInactive: true }).filter(
+  const operators = (await listUsers({ includeInactive: true })).filter(
     (u) => u.role === "operator",
   );
-  const rows = operators.map((u) => ({ user: u, r: computeReward(u.id, month) }));
+  const rows = await Promise.all(
+    operators.map(async (u) => ({
+      user: u,
+      r: await computeReward(u.id, month),
+    })),
+  );
   const visible = rows.filter((x) => x.user.is_active || x.r.total !== 0);
 
   const total = visible.reduce((s, x) => s + x.r.total, 0);

@@ -21,13 +21,19 @@ export default async function MembersPage({
   await requireAdmin();
   const sp = await searchParams;
 
-  const users = listUsers({ includeInactive: true });
+  const users = await listUsers({ includeInactive: true });
   const editing = users.find((u) => u.id === Number(sp.edit));
-  const accounts = listAccounts();
+  const accounts = await listAccounts();
 
   const month = thisMonth();
   const { start, end } = monthRange(month);
-  const byUser = totalsByUser(start, end);
+  const byUser = await totalsByUser(start, end);
+  // JSX内では await できないため、単価を先に引いておく
+  const rates = new Map(
+    await Promise.all(
+      users.map(async (u) => [u.id, await getEffectiveRate(u.id, month)] as const),
+    ),
+  );
 
   return (
     <>
@@ -127,7 +133,7 @@ export default async function MembersPage({
             <tbody>
               {users.map((u) => {
                 const t = byUser.get(u.id) ?? { sent: 0, reply: 0 };
-                const rate = getEffectiveRate(u.id, month);
+                const rate = rates.get(u.id)!;
                 return (
                   <tr key={u.id}>
                     <td>

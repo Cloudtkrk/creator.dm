@@ -25,23 +25,23 @@ export default async function DailyPage({
   const sp = await searchParams;
 
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : today();
-  const operators = listUsers().filter((u) => u.role === "operator");
+  const operators = (await listUsers()).filter((u) => u.role === "operator");
   const targetUserId = Number(sp.user) || operators[0]?.id || 0;
   const targetName =
     operators.find((u) => u.id === targetUserId)?.name ?? "運用者未登録";
 
-  const accounts = listAccounts(targetUserId);
-  const existing = reportsOnDate(date, targetUserId);
+  const accounts = await listAccounts(targetUserId);
+  const existing = await reportsOnDate(date, targetUserId);
 
-  const settings = getSettings();
+  const settings = await getSettings();
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
 
-  const dayTotals = totalsInRange(date, date, targetUserId);
+  const dayTotals = await totalsInRange(date, date, targetUserId);
   const week = lastNDates(date, 7);
-  const weekSeries = dailySeries(week[0], date, targetUserId);
+  const weekSeries = await dailySeries(week[0], date, targetUserId);
   const seriesMap = new Map(weekSeries.map((d) => [d.date, d]));
-  const weekTotals = totalsInRange(week[0], date, targetUserId);
+  const weekTotals = await totalsInRange(week[0], date, targetUserId);
 
   const goalTotal = accounts
     .filter((a) => a.status === "active")
