@@ -9,7 +9,7 @@
  * スキーマを変更したらこの番号を上げる。番号が変わったときだけ
  * SCHEMA_SQL を流し直すため、通常のリクエストでは追加の往復が発生しない。
  */
-export const SCHEMA_VERSION = "2";
+export const SCHEMA_VERSION = "3";
 
 export const SCHEMA_SQL = `
 -- 運用者・管理者
@@ -135,6 +135,17 @@ CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- 日次バックアップ（全テーブルをJSONにしてgzip圧縮したもの）
+CREATE TABLE IF NOT EXISTS backups (
+  id          SERIAL PRIMARY KEY,
+  created_at  TEXT    NOT NULL,
+  kind        TEXT    NOT NULL DEFAULT 'daily',  -- daily | manual
+  size_bytes  INTEGER NOT NULL DEFAULT 0,
+  row_counts  TEXT    NOT NULL DEFAULT '{}',     -- テーブルごとの件数（JSON）
+  data        BYTEA   NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at DESC);
 `;
 
 /** アラート判定の初期値。未設定のキーだけ投入される。 */

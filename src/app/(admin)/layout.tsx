@@ -33,6 +33,7 @@ export default async function AdminLayout({
         { href: "/rewards", label: "報酬管理", icon: "¥" },
         { href: "/members", label: "メンバー・単価", icon: "☰" },
         { href: "/settings", label: "アラート設定", icon: "⚙" },
+        { href: "/backups", label: "バックアップ", icon: "⛃" },
       ],
     },
   ];
