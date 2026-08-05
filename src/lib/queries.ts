@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { query, queryOne } from "./db";
 import { monthRange } from "./date";
 import type {
@@ -13,7 +14,7 @@ import type {
 
 /* ------------------------------------------------------------------ users */
 
-export async function listUsers(
+export const listUsers = cache(async function listUsers(
   opts: { includeInactive?: boolean } = {},
 ): Promise<User[]> {
   const where = opts.includeInactive ? "" : "WHERE is_active = 1";
@@ -25,11 +26,11 @@ export async function listUsers(
       b.is_active - a.is_active ||
       a.name.localeCompare(b.name, "ja"),
   );
-}
+});
 
-export function getUser(id: number): Promise<User | null> {
+export const getUser = cache(function getUser(id: number): Promise<User | null> {
   return queryOne<User>("SELECT * FROM users WHERE id = ?", [id]);
-}
+})
 
 export function getUserByLoginId(loginId: string): Promise<User | null> {
   return queryOne<User>("SELECT * FROM users WHERE login_id = ?", [loginId]);
@@ -37,7 +38,7 @@ export function getUserByLoginId(loginId: string): Promise<User | null> {
 
 /* --------------------------------------------------------------- accounts */
 
-export function listAccounts(userId?: number): Promise<TiktokAccount[]> {
+export const listAccounts = cache(function listAccounts(userId?: number): Promise<TiktokAccount[]> {
   if (userId === undefined) {
     return query<TiktokAccount>(
       "SELECT * FROM tiktok_accounts ORDER BY user_id, handle",
@@ -47,7 +48,7 @@ export function listAccounts(userId?: number): Promise<TiktokAccount[]> {
     "SELECT * FROM tiktok_accounts WHERE user_id = ? ORDER BY handle",
     [userId],
   );
-}
+});
 
 export function getAccount(id: number): Promise<TiktokAccount | null> {
   return queryOne<TiktokAccount>("SELECT * FROM tiktok_accounts WHERE id = ?", [
@@ -58,7 +59,7 @@ export function getAccount(id: number): Promise<TiktokAccount | null> {
 /* ------------------------------------------------------------ rate cards */
 
 /** 指定月に適用される単価（その月以前で最も新しいもの）。無ければ全て0。 */
-export async function getEffectiveRate(
+export const getEffectiveRate = cache(async function getEffectiveRate(
   userId: number,
   month: string,
 ): Promise<RateCard> {
@@ -80,7 +81,20 @@ export async function getEffectiveRate(
       monthly_fixed: 0,
     }
   );
-}
+});
+
+/** 指定月に適用される単価を全員分まとめて返す（一覧画面用）。 */
+export const effectiveRatesFor = cache(async function effectiveRatesFor(
+  month: string,
+): Promise<Map<number, RateCard>> {
+  const rows = await query<RateCard>(
+    `SELECT DISTINCT ON (user_id) * FROM rate_cards
+     WHERE effective_month <= ?
+     ORDER BY user_id, effective_month DESC`,
+    [month],
+  );
+  return new Map(rows.map((r) => [r.user_id, r]));
+});
 
 export function listRateCards(userId: number): Promise<RateCard[]> {
   return query<RateCard>(
@@ -97,7 +111,7 @@ export const replyRate = (t: Totals): number =>
   t.sent > 0 ? (t.reply / t.sent) * 100 : 0;
 
 /** 期間内の合計（ユーザー指定可） */
-export async function totalsInRange(
+export const totalsInRange = cache(async function totalsInRange(
   start: string,
   end: string,
   userId?: number,
@@ -109,7 +123,7 @@ export async function totalsInRange(
   if (userId !== undefined) params.push(userId);
   const row = await queryOne<Totals>(sql, params);
   return row ?? { sent: 0, reply: 0 };
-}
+});
 
 /** 期間内の日別合計（グラフ用） */
 export function dailySeries(
@@ -129,7 +143,7 @@ export function dailySeries(
 }
 
 /** 期間内のユーザー別合計 */
-export async function totalsByUser(
+export const totalsByUser = cache(async function totalsByUser(
   start: string,
   end: string,
 ): Promise<Map<number, Totals>> {
@@ -143,10 +157,10 @@ export async function totalsByUser(
     [start, end],
   );
   return new Map(rows.map((r) => [r.user_id, { sent: r.sent, reply: r.reply }]));
-}
+});
 
 /** 期間内のアカウント別合計 */
-export async function totalsByAccount(
+export const totalsByAccount = cache(async function totalsByAccount(
   start: string,
   end: string,
 ): Promise<Map<number, Totals>> {
@@ -162,7 +176,7 @@ export async function totalsByAccount(
   return new Map(
     rows.map((r) => [r.account_id, { sent: r.sent, reply: r.reply }]),
   );
-}
+});
 
 /** ある日のアカウント別実績（日報入力画面用） */
 export async function reportsOnDate(
@@ -188,20 +202,28 @@ export async function reportsOnDate(
   );
 }
 
-/** 日報が1件でも入力されている日付の集合（未入力アラート用） */
-export async function reportedDates(
+/**
+ * 日報が1件でも入力されている日付を運用者ごとに返す（未入力アラート用）。
+ * 以前は運用者1人につき1本のクエリを投げていたため、人数分の往復が発生していた。
+ */
+export const reportedDatesByUser = cache(async function reportedDatesByUser(
   start: string,
   end: string,
-  userId: number,
-): Promise<Set<string>> {
-  const rows = await query<{ date: string }>(
-    `SELECT DISTINCT d.report_date AS date
+): Promise<Map<number, Set<string>>> {
+  const rows = await query<{ user_id: number; date: string }>(
+    `SELECT DISTINCT a.user_id AS user_id, d.report_date AS date
      FROM daily_reports d JOIN tiktok_accounts a ON a.id = d.account_id
-     WHERE d.report_date BETWEEN ? AND ? AND a.user_id = ?`,
-    [start, end, userId],
+     WHERE d.report_date BETWEEN ? AND ?`,
+    [start, end],
   );
-  return new Set(rows.map((r) => r.date));
-}
+  const out = new Map<number, Set<string>>();
+  for (const r of rows) {
+    const set = out.get(r.user_id) ?? new Set<string>();
+    set.add(r.date);
+    out.set(r.user_id, set);
+  }
+  return out;
+});
 
 /* ------------------------------------------------------------------ leads */
 
@@ -239,7 +261,7 @@ export function getLead(id: number): Promise<Lead | null> {
 export type LeadCounts = { line: number; meeting: number; closed: number };
 
 /** 期間内に LINE登録／面談／成約 に至った件数（ユーザー別） */
-export async function leadCountsByUser(
+export const leadCountsByUser = cache(async function leadCountsByUser(
   start: string,
   end: string,
 ): Promise<Map<number, LeadCounts>> {
@@ -257,9 +279,9 @@ export async function leadCountsByUser(
       { line: r.line, meeting: r.meeting, closed: r.closed },
     ]),
   );
-}
+});
 
-export async function leadCounts(
+export const leadCounts = cache(async function leadCounts(
   start: string,
   end: string,
   userId?: number,
@@ -277,7 +299,7 @@ export async function leadCounts(
     meeting: row?.meeting ?? 0,
     closed: row?.closed ?? 0,
   };
-}
+});
 
 /* ----------------------------------------------------------------- 報酬 */
 
@@ -300,7 +322,114 @@ export type RewardBreakdown = {
   status: RewardStatusValue;
 };
 
-export async function computeReward(
+/**
+ * 月内の全運用者の報酬をまとめて計算する。
+ * 1人ずつ computeReward を呼ぶと人数×5本のクエリになるため、
+ * 一覧画面では必ずこちらを使う。
+ */
+export const computeRewards = cache(async function computeRewards(
+  month: string,
+): Promise<Map<number, RewardBreakdown>> {
+  const { start, end } = monthRange(month);
+  const [users, rates, totals, leads, adjustments, statuses] = await Promise.all([
+    listUsers({ includeInactive: true }),
+    query<RateCard>(
+      `SELECT DISTINCT ON (user_id) * FROM rate_cards
+       WHERE effective_month <= ?
+       ORDER BY user_id, effective_month DESC`,
+      [month],
+    ),
+    totalsByUser(start, end),
+    leadCountsByUser(start, end),
+    query<RewardAdjustment>(
+      "SELECT * FROM reward_adjustments WHERE month = ? ORDER BY id",
+      [month],
+    ),
+    query<{ user_id: number; status: RewardStatusValue }>(
+      "SELECT user_id, status FROM reward_statuses WHERE month = ?",
+      [month],
+    ),
+  ]);
+
+  const rateByUser = new Map(rates.map((r) => [r.user_id, r]));
+  const statusByUser = new Map(statuses.map((r) => [r.user_id, r.status]));
+  const adjByUser = new Map<number, RewardAdjustment[]>();
+  for (const a of adjustments) {
+    adjByUser.set(a.user_id, [...(adjByUser.get(a.user_id) ?? []), a]);
+  }
+
+  const out = new Map<number, RewardBreakdown>();
+  for (const u of users) {
+    out.set(
+      u.id,
+      buildBreakdown({
+        userId: u.id,
+        month,
+        rate: rateByUser.get(u.id) ?? emptyRate(u.id, month),
+        totals: totals.get(u.id) ?? { sent: 0, reply: 0 },
+        leads: leads.get(u.id) ?? { line: 0, meeting: 0, closed: 0 },
+        adjustments: adjByUser.get(u.id) ?? [],
+        status: statusByUser.get(u.id) ?? "draft",
+      }),
+    );
+  }
+  return out;
+});
+
+const emptyRate = (userId: number, month: string): RateCard => ({
+  id: 0,
+  user_id: userId,
+  effective_month: month,
+  dm_unit_price: 0,
+  reply_unit_price: 0,
+  line_bonus: 0,
+  meeting_bonus: 0,
+  monthly_fixed: 0,
+});
+
+function buildBreakdown(a: {
+  userId: number;
+  month: string;
+  rate: RateCard;
+  totals: Totals;
+  leads: LeadCounts;
+  adjustments: RewardAdjustment[];
+  status: RewardStatusValue;
+}): RewardBreakdown {
+  const adjustmentTotal = a.adjustments.reduce((s, x) => s + x.amount, 0);
+  const dmAmount = a.totals.sent * a.rate.dm_unit_price;
+  const replyAmount = a.totals.reply * a.rate.reply_unit_price;
+  const lineAmount = a.leads.line * a.rate.line_bonus;
+  const meetingAmount = a.leads.meeting * a.rate.meeting_bonus;
+  const fixedAmount = a.rate.monthly_fixed;
+  return {
+    userId: a.userId,
+    month: a.month,
+    rate: a.rate,
+    sent: a.totals.sent,
+    reply: a.totals.reply,
+    line: a.leads.line,
+    meeting: a.leads.meeting,
+    dmAmount,
+    replyAmount,
+    lineAmount,
+    meetingAmount,
+    fixedAmount,
+    adjustments: a.adjustments,
+    adjustmentTotal,
+    total:
+      dmAmount +
+      replyAmount +
+      lineAmount +
+      meetingAmount +
+      fixedAmount +
+      adjustmentTotal,
+    status: a.status,
+  };
+}
+
+/** 1人分の報酬。一覧では computeRewards を使うこと。 */
+export const computeReward = cache(async function computeReward(
   userId: number,
   month: string,
 ): Promise<RewardBreakdown> {
@@ -319,38 +448,16 @@ export async function computeReward(
     ),
   ]);
 
-  const adjustmentTotal = adjustments.reduce((s, a) => s + a.amount, 0);
-  const dmAmount = t.sent * rate.dm_unit_price;
-  const replyAmount = t.reply * rate.reply_unit_price;
-  const lineAmount = lc.line * rate.line_bonus;
-  const meetingAmount = lc.meeting * rate.meeting_bonus;
-  const fixedAmount = rate.monthly_fixed;
-
-  return {
+  return buildBreakdown({
     userId,
     month,
     rate,
-    sent: t.sent,
-    reply: t.reply,
-    line: lc.line,
-    meeting: lc.meeting,
-    dmAmount,
-    replyAmount,
-    lineAmount,
-    meetingAmount,
-    fixedAmount,
+    totals: t,
+    leads: lc,
     adjustments,
-    adjustmentTotal,
-    total:
-      dmAmount +
-      replyAmount +
-      lineAmount +
-      meetingAmount +
-      fixedAmount +
-      adjustmentTotal,
     status: statusRow?.status ?? "draft",
-  };
-}
+  });
+});
 
 /* ------------------------------------------------------------ templates */
 

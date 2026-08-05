@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { formatMonth, recentMonths, thisMonth } from "@/lib/date";
-import { computeReward, listUsers } from "@/lib/queries";
+import { computeRewards, listUsers } from "@/lib/queries";
 import { REWARD_STATUS_LABEL, type RewardStatusValue } from "@/lib/types";
 import { Flash, Stat, yen } from "@/components/ui";
 import { setRewardStatus } from "@/app/actions";
@@ -26,12 +26,8 @@ export default async function RewardsPage({
   const operators = (await listUsers({ includeInactive: true })).filter(
     (u) => u.role === "operator",
   );
-  const rows = await Promise.all(
-    operators.map(async (u) => ({
-      user: u,
-      r: await computeReward(u.id, month),
-    })),
-  );
+  const rewards = await computeRewards(month);
+  const rows = operators.map((u) => ({ user: u, r: rewards.get(u.id)! }));
   const visible = rows.filter((x) => x.user.is_active || x.r.total !== 0);
 
   const total = visible.reduce((s, x) => s + x.r.total, 0);

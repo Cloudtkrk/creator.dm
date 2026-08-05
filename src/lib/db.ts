@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { Pool, types, type PoolClient } from "pg";
 import { DEFAULT_SETTINGS, SCHEMA_SQL } from "./schema";
 
@@ -29,7 +30,7 @@ export function getPool(): Pool {
     pool = new Pool({
       connectionString: connectionString(),
       // サーバーレスでは1インスタンスあたりの同時実行が少ないため接続数を絞る
-      max: Number(process.env.DB_POOL_MAX ?? 3),
+      max: Number(process.env.DB_POOL_MAX ?? 5),
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
     });
@@ -56,6 +57,12 @@ let ready: Promise<void> | undefined;
  * 何もしないので、毎回呼んでも安全。
  */
 async function migrate(): Promise<void> {
+  // 作成済みかどうかを1往復で確認し、済んでいればDDLもロックも省く
+  const applied = await getPool().query(
+    "SELECT to_regclass('public.settings') IS NOT NULL AS ok",
+  );
+  if (applied.rows[0]?.ok) return;
+
   const client = await getPool().connect();
   try {
     await client.query("SELECT pg_advisory_lock(hashtext('creator_dm_schema'))");
@@ -142,14 +149,16 @@ export async function transaction<T>(
 
 /* ------------------------------------------------------------------ 設定 */
 
-export async function getSettings(): Promise<Record<string, string>> {
-  const rows = await query<{ key: string; value: string }>(
-    "SELECT key, value FROM settings",
-  );
-  const out: Record<string, string> = { ...DEFAULT_SETTINGS };
-  for (const r of rows) out[r.key] = r.value;
-  return out;
-}
+export const getSettings = cache(
+  async (): Promise<Record<string, string>> => {
+    const rows = await query<{ key: string; value: string }>(
+      "SELECT key, value FROM settings",
+    );
+    const out: Record<string, string> = { ...DEFAULT_SETTINGS };
+    for (const r of rows) out[r.key] = r.value;
+    return out;
+  },
+);
 
 export async function setSetting(key: string, value: string): Promise<void> {
   await exec(

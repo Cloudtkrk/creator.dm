@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { queryOne } from "./db";
@@ -90,11 +91,13 @@ export async function currentUser(): Promise<User | null> {
   if (!token) return null;
   const id = decode(token);
   if (!id) return null;
-  return queryOne<User>(
-    "SELECT * FROM users WHERE id = ? AND is_active = 1",
-    [id],
-  );
+  return loadActiveUser(id);
 }
+
+// レイアウトとページの両方から呼ばれるため、リクエスト内で1回にまとめる
+const loadActiveUser = cache((id: number) =>
+  queryOne<User>("SELECT * FROM users WHERE id = ? AND is_active = 1", [id]),
+);
 
 /** 未ログインなら /login へ飛ばす。 */
 export async function requireUser(): Promise<User> {

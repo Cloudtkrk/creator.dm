@@ -9,7 +9,7 @@ import {
   today,
 } from "@/lib/date";
 import {
-  computeReward,
+  computeRewards,
   dailySeries,
   leadCounts,
   leadCountsByUser,
@@ -53,13 +53,12 @@ export default async function Dashboard({
   const accounts = await listAccounts();
   const byAccount = await totalsByAccount(start, end);
 
-  // 運用者別サマリーと合計の両方で使うため、報酬は先にまとめて計算しておく
-  const rewards = new Map(
-    await Promise.all(
-      users.map(async (u) => [u.id, await computeReward(u.id, month)] as const),
-    ),
+  // 全員分をまとめて計算する（1人ずつ呼ぶと人数×5本のクエリになる）
+  const rewards = await computeRewards(month);
+  const rewardTotal = users.reduce(
+    (s, u) => s + (rewards.get(u.id)?.total ?? 0),
+    0,
   );
-  const rewardTotal = [...rewards.values()].reduce((s, r) => s + r.total, 0);
 
   return (
     <>

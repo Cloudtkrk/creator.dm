@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { formatMonth, monthRange, thisMonth } from "@/lib/date";
 import {
-  getEffectiveRate,
+  effectiveRatesFor,
   listAccounts,
   listUsers,
   replyRate,
@@ -28,12 +28,8 @@ export default async function MembersPage({
   const month = thisMonth();
   const { start, end } = monthRange(month);
   const byUser = await totalsByUser(start, end);
-  // JSX内では await できないため、単価を先に引いておく
-  const rates = new Map(
-    await Promise.all(
-      users.map(async (u) => [u.id, await getEffectiveRate(u.id, month)] as const),
-    ),
-  );
+  // JSX内では await できないため、全員分の単価を1本のクエリで先に引いておく
+  const rates = await effectiveRatesFor(month);
 
   return (
     <>
@@ -133,7 +129,7 @@ export default async function MembersPage({
             <tbody>
               {users.map((u) => {
                 const t = byUser.get(u.id) ?? { sent: 0, reply: 0 };
-                const rate = rates.get(u.id)!;
+                const rate = rates.get(u.id);
                 return (
                   <tr key={u.id}>
                     <td>
@@ -154,8 +150,8 @@ export default async function MembersPage({
                     <td className="num">
                       {t.sent > 0 ? `${replyRate(t).toFixed(1)}%` : "-"}
                     </td>
-                    <td className="num">{yen(rate.dm_unit_price)}</td>
-                    <td className="num">{yen(rate.monthly_fixed)}</td>
+                    <td className="num">{yen(rate?.dm_unit_price ?? 0)}</td>
+                    <td className="num">{yen(rate?.monthly_fixed ?? 0)}</td>
                     <td>
                       <span className={`badge ${u.is_active ? "ok" : "neutral"}`}>
                         {u.is_active ? "有効" : "無効"}

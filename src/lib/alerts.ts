@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getSettings, settingNumber } from "./db";
 import { addDays, today } from "./date";
 import {
@@ -5,7 +6,7 @@ import {
   listAccounts,
   listUsers,
   replyRate,
-  reportedDates,
+  reportedDatesByUser,
   totalsByAccount,
   totalsByUser,
 } from "./queries";
@@ -41,7 +42,9 @@ const pct = (n: number) => `${n.toFixed(1)}%`;
  * 判定は「直近 alert_window_days 日」を対象とし、母数が alert_min_sent
  * 未満の場合は返信率の判定をスキップする（少数だと率が暴れるため）。
  */
-export async function computeAlerts(userId?: number): Promise<Alert[]> {
+export const computeAlerts = cache(async function computeAlerts(
+  userId?: number,
+): Promise<Alert[]> {
   const settings = await getSettings();
   const windowDays = settingNumber(settings, "alert_window_days");
   const warnRate = settingNumber(settings, "alert_reply_rate_warn");
@@ -53,28 +56,19 @@ export async function computeAlerts(userId?: number): Promise<Alert[]> {
   const end = today();
   const start = addDays(end, -(windowDays - 1));
 
-  const [allUsers, userTotals, accountTotals, leads, allAccounts] =
+  const checkStart = addDays(end, -missingDays);
+  const [allUsers, userTotals, accountTotals, leads, allAccounts, filledByUser] =
     await Promise.all([
       listUsers(),
       totalsByUser(start, end),
       totalsByAccount(start, end),
       leadCountsByUser(start, end),
       listAccounts(),
+      reportedDatesByUser(checkStart, addDays(end, -1)),
     ]);
 
   const users = allUsers.filter(
     (u) => u.role === "operator" && (userId === undefined || u.id === userId),
-  );
-
-  // 日報の未入力判定はユーザーごとに問い合わせが必要なため、まとめて取得しておく
-  const checkStart = addDays(end, -missingDays);
-  const filledByUser = new Map<number, Set<string>>(
-    await Promise.all(
-      users.map(
-        async (u) =>
-          [u.id, await reportedDates(checkStart, addDays(end, -1), u.id)] as const,
-      ),
-    ),
   );
 
   const alerts: Alert[] = [];
@@ -179,4 +173,4 @@ export async function computeAlerts(userId?: number): Promise<Alert[]> {
       LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] ||
       a.userName.localeCompare(b.userName, "ja"),
   );
-}
+});
