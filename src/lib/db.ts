@@ -3,8 +3,8 @@ import { Pool, types, type PoolClient } from "pg";
 import { DEFAULT_SETTINGS, SCHEMA_SQL, SCHEMA_VERSION } from "./schema";
 
 /**
- * PostgreSQL 接続。Vercel の Neon 連携が入れてくれる環境変数をそのまま使う。
- * ローカル開発でも同じ変数を .env に書けば動く。
+ * PostgreSQL 接続。Vercel の Storage 連携（Prisma Postgres / Neon など）が
+ * 入れてくれる環境変数をそのまま使う。ローカル開発でも同じ変数を .env に書けば動く。
  */
 function connectionString(): string {
   const url =
@@ -151,6 +151,52 @@ export async function transaction<T>(
   } finally {
     client.release();
   }
+}
+
+/* -------------------------------------------------------------- 接続診断 */
+
+export type DbLatency = {
+  /** 接続を開くところから最初の応答までにかかった時間 */
+  firstMs: number;
+  /** 接続済みの状態での1往復（中央値） */
+  medianMs: number;
+  minMs: number;
+  maxMs: number;
+  host: string;
+};
+
+/**
+ * データベースとの往復時間を実測する。画面の待ち時間はほぼ
+ * 「往復回数 × これ」で決まるため、表示が遅いときはまずこれを見る。
+ */
+export async function measureDbLatency(rounds = 7): Promise<DbLatency> {
+  const pool = getPool();
+  const t0 = Date.now();
+  await pool.query("SELECT 1");
+  const firstMs = Date.now() - t0;
+
+  const times: number[] = [];
+  for (let i = 0; i < rounds; i++) {
+    const t = Date.now();
+    await pool.query("SELECT 1");
+    times.push(Date.now() - t);
+  }
+  times.sort((a, b) => a - b);
+
+  let host = "-";
+  try {
+    host = new URL(connectionString()).host;
+  } catch {
+    /* 接続文字列の形式が想定外でも診断は続ける */
+  }
+
+  return {
+    firstMs,
+    medianMs: times[Math.floor(times.length / 2)],
+    minMs: times[0],
+    maxMs: times[times.length - 1],
+    host,
+  };
 }
 
 /* ------------------------------------------------------------------ 設定 */

@@ -1,9 +1,32 @@
 import { requireAdmin } from "@/lib/auth";
-import { getSettings } from "@/lib/db";
+import { getSettings, measureDbLatency, type DbLatency } from "@/lib/db";
 import { Flash } from "@/components/ui";
 import { saveSettings } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
+
+/** 往復時間から、データベースが近くにあるかを判定する。 */
+function verdict(ms: number): { level: string; label: string; note: string } {
+  if (ms < 15) {
+    return {
+      level: "ok",
+      label: "近い",
+      note: "関数とデータベースが同じ地域にあります。この構成が理想です。",
+    };
+  }
+  if (ms < 60) {
+    return {
+      level: "warn",
+      label: "やや遠い",
+      note: "同じ国か近隣地域と思われます。実用上は問題ありませんが、地域を揃えるとさらに速くなります。",
+    };
+  }
+  return {
+    level: "danger",
+    label: "遠い",
+    note: "別の大陸にある可能性が高いです。1回の読み込みごとにこの時間が数回分そのまま上乗せされます。データベースを東京（ap-northeast-1）に作り直して繋ぎ替えることを検討してください。",
+  };
+}
 
 const FIELDS: {
   key: string;
@@ -52,11 +75,22 @@ const FIELDS: {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ msg?: string; t?: string }>;
+  searchParams: Promise<{ msg?: string; t?: string; probe?: string }>;
 }) {
   await requireAdmin();
   const sp = await searchParams;
   const settings = await getSettings();
+
+  // 実測は往復を数回使うので、押されたときだけ行う
+  let latency: DbLatency | null = null;
+  let probeError: string | null = null;
+  if (sp.probe) {
+    try {
+      latency = await measureDbLatency();
+    } catch (e) {
+      probeError = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   return (
     <>
@@ -95,6 +129,64 @@ export default async function SettingsPage({
             保存する
           </button>
         </form>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <h2>データベースとの往復時間</h2>
+            <p>
+              画面の待ち時間はほぼ「往復回数 × この時間」で決まります。
+              表示が遅いと感じたら、まずここを測ってください。
+            </p>
+          </div>
+          <a className="btn" href="/settings?probe=1">
+            {latency || probeError ? "もう一度測る" : "測定する"}
+          </a>
+        </div>
+
+        {probeError ? (
+          <div className="empty">測定できませんでした：{probeError}</div>
+        ) : latency ? (
+          <>
+            <div className="grid cols-4">
+              <div className="count-tile">
+                <span>1往復（中央値）</span>
+                <strong>{latency.medianMs} ms</strong>
+              </div>
+              <div className="count-tile">
+                <span>最速 / 最遅</span>
+                <strong>
+                  {latency.minMs} / {latency.maxMs} ms
+                </strong>
+              </div>
+              <div className="count-tile">
+                <span>接続を開く1回目</span>
+                <strong>{latency.firstMs} ms</strong>
+              </div>
+              <div className="count-tile">
+                <span>判定</span>
+                <strong>
+                  <span className={`badge ${verdict(latency.medianMs).level}`}>
+                    {verdict(latency.medianMs).label}
+                  </span>
+                </strong>
+              </div>
+            </div>
+            <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>
+              {verdict(latency.medianMs).note}
+            </p>
+            <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              接続先：{latency.host} ／ 現在の作りでは1画面あたり往復2回です
+              （＝おおよそ {latency.medianMs * 2} ms がデータベース待ちの時間）。
+            </p>
+          </>
+        ) : (
+          <div className="empty">
+            「測定する」を押すと、この画面を動かしているサーバーから
+            データベースまでの往復時間を実測します。
+          </div>
+        )}
       </div>
 
       <div className="card">
