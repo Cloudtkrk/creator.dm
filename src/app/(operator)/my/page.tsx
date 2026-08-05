@@ -40,6 +40,10 @@ export default async function MyEntryPage({
     };
   });
 
+  const formKey = `${date}|${rows
+    .map((r) => `${r.id}:${r.sent}:${r.reply}`)
+    .join(",")}`;
+
   const week = lastNDates(date, 7);
   const series = new Map(
     (await dailySeries(week[0], date, me.id)).map((d) => [d.date, d] as const),
@@ -83,7 +87,13 @@ export default async function MyEntryPage({
           </div>
         </div>
       ) : (
+        /*
+         * key に「日付＋読み込んだ実績」を入れて、別の日に移動したときに
+         * 入力欄を必ず作り直す。これが無いと前の日の数字が残ったままになり、
+         * そのまま保存すると移動先の日の実績を上書きしてしまう。
+         */
         <DailyEntryForm
+          key={formKey}
           action={saveDailyReports}
           date={date}
           targetUserId={me.id}

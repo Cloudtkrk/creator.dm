@@ -227,11 +227,16 @@ export const reportedDatesByUser = cache(async function reportedDatesByUser(
 
 /* ------------------------------------------------------------------ leads */
 
-export function listLeads(filter: {
+export type LeadFilter = {
   userId?: number;
   stage?: string;
   keyword?: string;
-}): Promise<Lead[]> {
+};
+
+/** 1ページあたりの表示件数。リードは日々増えるため必ず区切って読み込む。 */
+export const LEADS_PER_PAGE = 100;
+
+function leadWhere(filter: LeadFilter): { where: string; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
   if (filter.userId !== undefined) {
@@ -247,11 +252,32 @@ export function listLeads(filter: {
     const kw = `%${filter.keyword}%`;
     params.push(kw, kw, kw);
   }
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  return query<Lead>(
-    `SELECT * FROM leads ${where} ORDER BY updated_at DESC LIMIT 500`,
+  return {
+    where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
     params,
-  );
+  };
+}
+
+/** 条件に一致するリードを1ページ分と、条件全体の件数をまとめて返す。 */
+export async function listLeadsPage(
+  filter: LeadFilter,
+  page = 1,
+): Promise<{ leads: Lead[]; total: number; page: number; pages: number }> {
+  const { where, params } = leadWhere(filter);
+  const [rows, countRow] = await Promise.all([
+    query<Lead>(
+      `SELECT * FROM leads ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+      [...params, LEADS_PER_PAGE, (page - 1) * LEADS_PER_PAGE],
+    ),
+    queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM leads ${where}`, params),
+  ]);
+  const total = countRow?.n ?? 0;
+  return {
+    leads: rows,
+    total,
+    page,
+    pages: Math.max(1, Math.ceil(total / LEADS_PER_PAGE)),
+  };
 }
 
 export function getLead(id: number): Promise<Lead | null> {

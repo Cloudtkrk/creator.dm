@@ -4,7 +4,7 @@ import {
   getLead,
   leadCounts,
   listAccounts,
-  listLeads,
+  listLeadsPage,
   listUsers,
   totalsInRange,
 } from "@/lib/queries";
@@ -57,6 +57,7 @@ export default async function LeadsPage({
     stage?: string;
     q?: string;
     edit?: string;
+    page?: string;
     msg?: string;
     t?: string;
   }>;
@@ -68,13 +69,28 @@ export default async function LeadsPage({
   const operators = users.filter((u) => u.role === "operator");
   const filterUser = Number(sp.user) || undefined;
 
-  const leads = await listLeads({
-    userId: filterUser,
-    stage: sp.stage || undefined,
-    keyword: sp.q || undefined,
-  });
+  const page = Math.max(1, Number(sp.page) || 1);
+  const { leads, total, pages } = await listLeadsPage(
+    {
+      userId: filterUser,
+      stage: sp.stage || undefined,
+      keyword: sp.q || undefined,
+    },
+    page,
+  );
 
   const accounts = await listAccounts();
+  // 行ごとに find すると件数×アカウント数の走査になるため、先に索引を作る
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const pageHref = (n: number) => {
+    const q = new URLSearchParams();
+    if (sp.user) q.set("user", sp.user);
+    if (sp.stage) q.set("stage", sp.stage);
+    if (sp.q) q.set("q", sp.q);
+    q.set("page", String(n));
+    return `/leads?${q}`;
+  };
   const editable = sp.edit ? await getLead(Number(sp.edit)) : null;
 
   const month = thisMonth();
@@ -242,7 +258,7 @@ export default async function LeadsPage({
           <div>
             <h2>リード一覧</h2>
             <p>
-              {leads.length} 件（最大500件表示）。日付をクリックすると記録を取り消せます。
+              全{total.toLocaleString("ja-JP")}件。日付をクリックすると記録を取り消せます。
             </p>
           </div>
           <form className="toolbar">
@@ -300,11 +316,11 @@ export default async function LeadsPage({
                     ) : null}
                   </td>
                   <td className="muted">
-                    {users.find((u) => u.id === l.user_id)?.name ?? "-"}
+                    {userById.get(l.user_id)?.name ?? "-"}
                   </td>
                   <td className="muted">
-                    {accounts.find((a) => a.id === l.account_id)
-                      ? `@${accounts.find((a) => a.id === l.account_id)!.handle}`
+                    {l.account_id && accountById.has(l.account_id)
+                      ? `@${accountById.get(l.account_id)!.handle}`
                       : "-"}
                   </td>
                   <td>
@@ -354,8 +370,46 @@ export default async function LeadsPage({
             </tbody>
           </table>
         </div>
+        <Pager page={page} pages={pages} total={total} href={pageHref} />
       </div>
     </>
+  );
+}
+
+/** 件数が多いと1画面に収まらないため、ページ送りを出す。 */
+function Pager({
+  page,
+  pages,
+  total,
+  href,
+}: {
+  page: number;
+  pages: number;
+  total: number;
+  href: (p: number) => string;
+}) {
+  if (pages <= 1) return null;
+  return (
+    <div className="pager">
+      {page > 1 ? (
+        <a className="btn small" href={href(page - 1)}>
+          ← 前の100件
+        </a>
+      ) : (
+        <span />
+      )}
+      <span className="muted">
+        {total.toLocaleString("ja-JP")}件中 {(page - 1) * 100 + 1}〜
+        {Math.min(page * 100, total)}件（{page} / {pages}ページ）
+      </span>
+      {page < pages ? (
+        <a className="btn small" href={href(page + 1)}>
+          次の100件 →
+        </a>
+      ) : (
+        <span />
+      )}
+    </div>
   );
 }
 

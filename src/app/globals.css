@@ -978,3 +978,16 @@ label.check input[type="checkbox"] {
   color: var(--warn);
   white-space: nowrap;
 }
+
+/* --- 一覧のページ送り --------------------------------------------- */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}

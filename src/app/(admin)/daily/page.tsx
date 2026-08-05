@@ -37,6 +37,14 @@ export default async function DailyPage({
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
 
+  // 日付や対象者を切り替えたときに入力欄を作り直すための識別子
+  const formKey = `${targetUserId}|${date}|${accounts
+    .map((a) => {
+      const cur = existing.get(a.id);
+      return `${a.id}:${cur?.sent ?? 0}:${cur?.reply ?? 0}`;
+    })
+    .join(",")}`;
+
   const dayTotals = await totalsInRange(date, date, targetUserId);
   const week = lastNDates(date, 7);
   const weekSeries = await dailySeries(week[0], date, targetUserId);
@@ -143,7 +151,7 @@ export default async function DailyPage({
             <Link href="/accounts">アカウント管理</Link>から追加してください。
           </div>
         ) : (
-          <form action={saveDailyReports}>
+          <form action={saveDailyReports} key={formKey}>
             <p className="entry-guide">
               <b>返信数は「有効な返信」だけを数えます。</b>
               お断りやスタンプのみなど、コミュニケーションに繋がらなかったものは含めません。
