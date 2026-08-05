@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/auth";
 import { formatDateTime } from "@/lib/date";
 import { KEEP_BACKUPS, listBackups } from "@/lib/backup";
 import { Flash, Stat } from "@/components/ui";
-import { backupNow } from "./actions";
+import { backupNow, restoreFromUpload } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +111,7 @@ export default async function BackupsPage({
           <div>
             <h2>取得履歴</h2>
             <p>
-              ダウンロードしたJSONは、そのまま復元に使えます（手順は README を参照）。
+              ダウンロードしたファイルは、下の「バックアップから復元する」でそのまま戻せます。
             </p>
           </div>
         </div>
@@ -146,9 +146,18 @@ export default async function BackupsPage({
                     </td>
                     <td className="num">{(c.leads ?? 0).toLocaleString("ja-JP")}</td>
                     <td>
-                      <a className="btn small" href={`/api/backups/${b.id}`}>
-                        ダウンロード
-                      </a>
+                      <div className="toolbar">
+                        <a className="btn small" href={`/api/backups/${b.id}`}>
+                          JSON
+                        </a>
+                        <a
+                          className="btn small"
+                          href={`/api/backups/${b.id}?gz=1`}
+                          title="圧縮したまま保存します。復元・引っ越しにはこちらを使ってください"
+                        >
+                          .gz
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -163,6 +172,47 @@ export default async function BackupsPage({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="card danger-zone">
+        <div className="card-head">
+          <div>
+            <h2>バックアップから復元する</h2>
+            <p>
+              ダウンロードしたファイル（<code>.json</code> でも{" "}
+              <code>.json.gz</code> でも可）を読み込んで、
+              <strong>現在のデータを全て置き換えます。</strong>
+              誤操作やデータ消失からの復旧のほか、
+              <strong>別のデータベースへ引っ越すとき</strong>にも使います。
+            </p>
+          </div>
+        </div>
+
+        <div className="form-msg error" style={{ marginBottom: 12 }}>
+          いまのデータは全て消えます。実行する前に、上の「今すぐバックアップ」で
+          現在の状態を取ってダウンロードしておいてください。
+          復元は1つのまとまりとして行うため、途中で失敗した場合は元の状態に戻ります。
+        </div>
+
+        <form action={restoreFromUpload}>
+          <label className="field">
+            <span>バックアップのファイル</span>
+            <input type="file" name="file" accept=".json,.gz,application/json,application/gzip" required />
+          </label>
+          <label className="field">
+            <span>確認のため「復元する」と入力してください</span>
+            <input
+              type="text"
+              name="confirm"
+              placeholder="復元する"
+              autoComplete="off"
+              required
+            />
+          </label>
+          <button className="btn danger" type="submit">
+            このファイルの内容で全て置き換える
+          </button>
+        </form>
       </div>
     </>
   );

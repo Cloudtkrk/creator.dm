@@ -1064,3 +1064,23 @@ label.check input[type="checkbox"] {
     animation: none;
   }
 }
+
+/* --- 取り返しのつかない操作 ------------------------------------- */
+
+.danger-zone {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+.danger-zone h2 {
+  color: var(--danger);
+}
+.danger-zone input[type="file"] {
+  padding: 8px;
+  background: var(--surface-2);
+}
+/* 取り消せない操作なので、押す前に色ではっきり分かるようにする */
+.danger-zone .btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-weight: 700;
+}
