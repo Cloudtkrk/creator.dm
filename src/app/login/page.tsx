@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { currentUser } from "@/lib/auth";
+import { currentUser, homePathFor } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { login } from "./actions";
 
@@ -10,7 +10,8 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ msg?: string }>;
 }) {
-  if (await currentUser()) redirect("/");
+  const signedIn = await currentUser();
+  if (signedIn) redirect(homePathFor(signedIn));
   const { msg } = await searchParams;
 
   const { n } = getDb().prepare("SELECT COUNT(*) AS n FROM users").get() as {

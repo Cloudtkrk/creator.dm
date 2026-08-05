@@ -655,3 +655,242 @@ details.rev summary {
     padding: 16px 14px 48px;
   }
 }
+
+/* ================================================================ */
+/* DM送付者（運用者）向け画面                                        */
+/* 毎日の入力だけに集中できるよう、管理画面とは別のレイアウトにする  */
+/* ================================================================ */
+
+.op-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.op-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.op-bar-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.op-bar-inner .brand {
+  padding: 0;
+  font-size: 15px;
+}
+.op-who {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.op-tabs {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 8px;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+}
+.op-tabs a {
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.op-tabs a:hover {
+  color: var(--text);
+}
+.op-tabs a.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.op-main {
+  flex: 1;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 16px 120px;
+}
+
+.op-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.op-date {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.op-date small {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0;
+}
+
+/* --- 入力行 ---------------------------------------------------- */
+
+.entry {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+.entry + .entry {
+  margin-top: 10px;
+}
+.entry-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.entry-handle {
+  font-weight: 700;
+  font-size: 15px;
+}
+.entry-nick {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.entry-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.entry-fields label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.entry-fields input[type="number"] {
+  font-size: 22px;
+  font-weight: 700;
+  padding: 10px 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  height: 48px;
+}
+.entry-memo {
+  margin-top: 8px;
+}
+.entry-rate {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 保存バー -------------------------------------------------- */
+
+.op-savebar {
+  position: sticky;
+  bottom: 0;
+  margin: 16px -16px -120px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 10;
+}
+.op-savebar .running {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.op-savebar .running span {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.op-savebar .btn {
+  margin-left: auto;
+  padding: 11px 26px;
+  font-size: 15px;
+}
+
+/* --- 直近7日のチェックリスト ----------------------------------- */
+
+.streak {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+}
+.streak a {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--surface-2);
+  text-align: center;
+}
+.streak a.filled {
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  background: var(--ok-soft);
+}
+.streak a.missing {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: var(--danger-soft);
+}
+.streak a.current {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.streak .d {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.streak .v {
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.streak .s {
+  font-size: 11px;
+  font-weight: 700;
+}
+.streak a.filled .s {
+  color: var(--ok);
+}
+.streak a.missing .s {
+  color: var(--danger);
+}
+
+.copy-box {
+  position: relative;
+}
+
+@media (max-width: 560px) {
+  .entry-fields {
+    grid-template-columns: 1fr;
+  }
+  .op-savebar .running {
+    font-size: 12px;
+  }
+}

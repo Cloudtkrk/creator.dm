@@ -103,10 +103,22 @@ export async function requireUser(): Promise<User> {
   return user;
 }
 
-/** 管理者以外なら弾く。 */
+/** ログイン後の入口。管理者は管理画面、運用者は入力画面。 */
+export function homePathFor(user: Pick<User, "role">): string {
+  return user.role === "admin" ? "/" : "/my";
+}
+
+/** 管理者以外なら運用者用の画面へ送り返す。 */
 export async function requireAdmin(): Promise<User> {
   const user = await requireUser();
-  if (user.role !== "admin") redirect("/");
+  if (user.role !== "admin") redirect("/my");
+  return user;
+}
+
+/** 運用者用画面の入口。管理者が開いた場合は管理画面へ戻す。 */
+export async function requireOperator(): Promise<User> {
+  const user = await requireUser();
+  if (user.role === "admin") redirect("/");
   return user;
 }
 
