@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 const FILTERS = [
   { value: "", label: "すべて" },
   { value: "replied", label: "返信のみ" },
-  { value: "line", label: "LINE誘導済み" },
+  { value: "guided", label: "LINE誘導済み" },
+  { value: "line", label: "LINE登録済み" },
   { value: "meeting", label: "面談済み" },
 ];
 
@@ -64,15 +65,21 @@ export default async function MyLeadsPage({
           返信者管理
           <small>
             返信のあったクリエイターを登録し、LINEに誘導できたら日付を入れてください。
-            面談の記録は管理者が行います。
+            LINE登録の確認と面談の記録は管理者が行います。
           </small>
         </div>
       </div>
 
       <Flash msg={sp.msg} t={sp.t} />
 
-      <div className="grid cols-2">
-        <Stat label="今月のLINE誘導" value={counts.line} unit="件" />
+      <div className="grid cols-3">
+        <Stat label="今月のLINE誘導" value={counts.guided} unit="件" />
+        <Stat
+          label="うちLINE登録"
+          value={counts.line}
+          unit="件"
+          sub="管理者が確認したもの"
+        />
         <Stat
           label="今月の面談"
           value={counts.meeting}
@@ -131,9 +138,9 @@ export default async function MyLeadsPage({
               <span>LINE誘導日（まだなら空欄）</span>
               <input
                 type="date"
-                name="line_at"
+                name="line_guided_at"
                 max={today()}
-                defaultValue={editable?.line_at ?? ""}
+                defaultValue={editable?.line_guided_at ?? ""}
               />
             </label>
           </div>
@@ -184,6 +191,7 @@ export default async function MyLeadsPage({
                 <th>送付アカウント</th>
                 <th>返信日</th>
                 <th>LINE誘導日</th>
+                <th>LINE登録</th>
                 <th>面談</th>
                 <th></th>
               </tr>
@@ -199,10 +207,17 @@ export default async function MyLeadsPage({
                   </td>
                   <td className="muted">{l.replied_at ?? "-"}</td>
                   <td>
+                    {l.line_guided_at ? (
+                      <span className="badge ok">{l.line_guided_at}</span>
+                    ) : (
+                      <span className="muted">未</span>
+                    )}
+                  </td>
+                  <td>
                     {l.line_at ? (
                       <span className="badge ok">{l.line_at}</span>
                     ) : (
-                      <span className="muted">未</span>
+                      <span className="muted">-</span>
                     )}
                   </td>
                   <td>
@@ -214,11 +229,11 @@ export default async function MyLeadsPage({
                   </td>
                   <td>
                     <div className="toolbar">
-                      {l.line_at ? null : (
+                      {l.line_guided_at ? null : (
                         <form action={setLeadMilestone} className="inline-form">
                           <input type="hidden" name="back_to" value="/my/leads" />
                           <input type="hidden" name="id" value={l.id} />
-                          <input type="hidden" name="field" value="line" />
+                          <input type="hidden" name="field" value="guided" />
                           <input type="hidden" name="on" value="1" />
                           <button className="btn small primary" type="submit">
                             LINE誘導済みにする
@@ -241,7 +256,7 @@ export default async function MyLeadsPage({
               ))}
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="empty">
+                  <td colSpan={7} className="empty">
                     まだ登録がありません。返信があったクリエイターを登録してください。
                   </td>
                 </tr>

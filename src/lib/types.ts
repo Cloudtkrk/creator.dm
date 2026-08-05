@@ -94,10 +94,17 @@ export type TemplateRevision = {
 
 // "closed"（成約）は運用対象から外したが、過去に登録されたデータが
 // 表示できるよう型とラベルだけ残している。新たに設定されることはない。
-export type LeadStage = "replied" | "line" | "meeting" | "closed" | "lost";
+export type LeadStage =
+  | "replied"
+  | "guided"
+  | "line"
+  | "meeting"
+  | "closed"
+  | "lost";
 
 export const LEAD_STAGES: { value: LeadStage; label: string }[] = [
   { value: "replied", label: "返信あり" },
+  { value: "guided", label: "LINE誘導済" },
   { value: "line", label: "LINE登録" },
   { value: "meeting", label: "面談実施" },
   { value: "lost", label: "見送り" },
@@ -116,6 +123,7 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
  * 報酬集計（日付ベース）と表示がずれるため、常にここで導出する。
  */
 export function deriveStage(v: {
+  guidedAt?: string | null;
   lineAt: string | null;
   meetingAt: string | null;
   lost?: boolean;
@@ -123,6 +131,7 @@ export function deriveStage(v: {
   if (v.lost) return "lost";
   if (v.meetingAt) return "meeting";
   if (v.lineAt) return "line";
+  if (v.guidedAt) return "guided";
   return "replied";
 }
 
@@ -134,6 +143,8 @@ export type Lead = {
   creator_name: string;
   stage: LeadStage;
   replied_at: string | null;
+  /** 作業者が申告したLINE誘導日 */
+  line_guided_at: string | null;
   line_at: string | null;
   meeting_at: string | null;
   closed_at: string | null;

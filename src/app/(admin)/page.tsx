@@ -132,11 +132,19 @@ export default async function Dashboard({
                 sub: `${replyRate(monthTotals).toFixed(1)}%`,
               },
               {
+                label: "LINE誘導",
+                n: leads.guided,
+                sub:
+                  monthTotals.reply > 0
+                    ? `返信の${((leads.guided / monthTotals.reply) * 100).toFixed(1)}%`
+                    : "-",
+              },
+              {
                 label: "LINE登録",
                 n: leads.line,
                 sub:
-                  monthTotals.reply > 0
-                    ? `返信の${((leads.line / monthTotals.reply) * 100).toFixed(1)}%`
+                  leads.guided > 0
+                    ? `誘導の${((leads.line / leads.guided) * 100).toFixed(1)}%`
                     : "-",
               },
               {
@@ -199,6 +207,7 @@ export default async function Dashboard({
                   <th className="num">送付</th>
                   <th className="num">返信</th>
                   <th className="num">返信率</th>
+                  <th className="num">誘導</th>
                   <th className="num">LINE</th>
                   <th className="num">面談</th>
                   <th className="num">報酬見込</th>
@@ -207,7 +216,11 @@ export default async function Dashboard({
               <tbody>
                 {users.map((u) => {
                   const t = byUser.get(u.id) ?? { sent: 0, reply: 0 };
-                  const lc = leadsByUser.get(u.id) ?? { line: 0, meeting: 0 };
+                  const lc = leadsByUser.get(u.id) ?? {
+                    guided: 0,
+                    line: 0,
+                    meeting: 0,
+                  };
                   const accCount = accounts.filter(
                     (a) => a.user_id === u.id,
                   ).length;
@@ -230,6 +243,7 @@ export default async function Dashboard({
                           <span className="muted">-</span>
                         )}
                       </td>
+                      <td className="num">{lc.guided}</td>
                       <td className="num">{lc.line}</td>
                       <td className="num">{lc.meeting}</td>
                       <td className="num">
@@ -240,7 +254,7 @@ export default async function Dashboard({
                 })}
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="empty">
+                    <td colSpan={9} className="empty">
                       運用者が登録されていません。
                       <Link href="/members">メンバー管理</Link>から追加してください。
                     </td>
@@ -258,6 +272,7 @@ export default async function Dashboard({
                     {monthTotals.reply.toLocaleString("ja-JP")}
                   </td>
                   <td className="num">{replyRate(monthTotals).toFixed(1)}%</td>
+                  <td className="num">{leads.guided}</td>
                   <td className="num">{leads.line}</td>
                   <td className="num">{leads.meeting}</td>
                   <td className="num">{yen(rewardTotal)}</td>

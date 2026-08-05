@@ -118,13 +118,14 @@ export default async function MyHistoryPage({
               sub: `${replyRate(totals).toFixed(1)}%`,
             },
             {
-              label: "LINE登録",
-              n: leads.line,
+              label: "LINE誘導",
+              n: leads.guided,
               sub:
                 totals.reply > 0
-                  ? `返信の${((leads.line / totals.reply) * 100).toFixed(1)}%`
+                  ? `返信の${((leads.guided / totals.reply) * 100).toFixed(1)}%`
                   : "-",
             },
+            { label: "LINE登録", n: leads.line },
             { label: "面談実施", n: leads.meeting },
           ]}
         />
@@ -191,6 +192,7 @@ export default async function MyHistoryPage({
                 <th>月</th>
                 <th className="num">送付</th>
                 <th className="num">返信率</th>
+                <th className="num">誘導</th>
                 <th className="num">LINE</th>
                 <th className="num">面談</th>
                 <th className="num">報酬</th>
@@ -210,6 +212,7 @@ export default async function MyHistoryPage({
                       ? `${replyRate({ sent: h.r.sent, reply: h.r.reply }).toFixed(1)}%`
                       : "-"}
                   </td>
+                  <td className="num">{h.r.guided}</td>
                   <td className="num">{h.r.line}</td>
                   <td className="num">{h.r.meeting}</td>
                   <td className="num">{yen(h.r.total)}</td>

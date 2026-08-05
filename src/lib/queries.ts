@@ -284,7 +284,7 @@ export function getLead(id: number): Promise<Lead | null> {
   return queryOne<Lead>("SELECT * FROM leads WHERE id = ?", [id]);
 }
 
-export type LeadCounts = { line: number; meeting: number };
+export type LeadCounts = { guided: number; line: number; meeting: number };
 
 /** 期間内に LINE登録／面談／成約 に至った件数（ユーザー別） */
 export const leadCountsByUser = cache(async function leadCountsByUser(
@@ -293,13 +293,17 @@ export const leadCountsByUser = cache(async function leadCountsByUser(
 ): Promise<Map<number, LeadCounts>> {
   const rows = await query<LeadCounts & { user_id: number }>(
     `SELECT user_id,
-            SUM(CASE WHEN line_at    BETWEEN ? AND ? THEN 1 ELSE 0 END) AS line,
-            SUM(CASE WHEN meeting_at BETWEEN ? AND ? THEN 1 ELSE 0 END) AS meeting
+            SUM(CASE WHEN line_guided_at BETWEEN ? AND ? THEN 1 ELSE 0 END) AS guided,
+            SUM(CASE WHEN line_at        BETWEEN ? AND ? THEN 1 ELSE 0 END) AS line,
+            SUM(CASE WHEN meeting_at     BETWEEN ? AND ? THEN 1 ELSE 0 END) AS meeting
      FROM leads GROUP BY user_id`,
-    [start, end, start, end],
+    [start, end, start, end, start, end],
   );
   return new Map(
-    rows.map((r) => [r.user_id, { line: r.line, meeting: r.meeting }]),
+    rows.map((r) => [
+      r.user_id,
+      { guided: r.guided, line: r.line, meeting: r.meeting },
+    ]),
   );
 });
 
@@ -309,13 +313,18 @@ export const leadCounts = cache(async function leadCounts(
   userId?: number,
 ): Promise<LeadCounts> {
   const sql = `SELECT
-      SUM(CASE WHEN line_at    BETWEEN ? AND ? THEN 1 ELSE 0 END) AS line,
-      SUM(CASE WHEN meeting_at BETWEEN ? AND ? THEN 1 ELSE 0 END) AS meeting
+      SUM(CASE WHEN line_guided_at BETWEEN ? AND ? THEN 1 ELSE 0 END) AS guided,
+      SUM(CASE WHEN line_at        BETWEEN ? AND ? THEN 1 ELSE 0 END) AS line,
+      SUM(CASE WHEN meeting_at     BETWEEN ? AND ? THEN 1 ELSE 0 END) AS meeting
     FROM leads${userId !== undefined ? " WHERE user_id = ?" : ""}`;
-  const params: unknown[] = [start, end, start, end];
+  const params: unknown[] = [start, end, start, end, start, end];
   if (userId !== undefined) params.push(userId);
   const row = await queryOne<Partial<LeadCounts>>(sql, params);
-  return { line: row?.line ?? 0, meeting: row?.meeting ?? 0 };
+  return {
+    guided: row?.guided ?? 0,
+    line: row?.line ?? 0,
+    meeting: row?.meeting ?? 0,
+  };
 });
 
 /* ----------------------------------------------------------------- 報酬 */
@@ -326,6 +335,7 @@ export type RewardBreakdown = {
   rate: RateCard;
   sent: number;
   reply: number;
+  guided: number;
   line: number;
   meeting: number;
   dmAmount: number;
@@ -384,7 +394,7 @@ export const computeRewards = cache(async function computeRewards(
         month,
         rate: rateByUser.get(u.id) ?? emptyRate(u.id, month),
         totals: totals.get(u.id) ?? { sent: 0, reply: 0 },
-        leads: leads.get(u.id) ?? { line: 0, meeting: 0 },
+        leads: leads.get(u.id) ?? { guided: 0, line: 0, meeting: 0 },
         adjustments: adjByUser.get(u.id) ?? [],
         status: statusByUser.get(u.id) ?? "draft",
       }),
@@ -425,6 +435,7 @@ function buildBreakdown(a: {
     rate: a.rate,
     sent: a.totals.sent,
     reply: a.totals.reply,
+    guided: a.leads.guided,
     line: a.leads.line,
     meeting: a.leads.meeting,
     dmAmount,

@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 const STAGE_BADGE: Record<LeadStage, string> = {
   replied: "info",
+  guided: "warn",
   line: "warn",
   meeting: "ok",
   closed: "ok",
@@ -25,6 +26,7 @@ const STAGE_BADGE: Record<LeadStage, string> = {
 const FILTERS: { value: string; label: string }[] = [
   { value: "", label: "すべて" },
   { value: "replied", label: "返信のみ" },
+  { value: "guided", label: "LINE誘導済み（未確認）" },
   { value: "line", label: "LINE登録済み" },
   { value: "meeting", label: "面談済み" },
   { value: "lost", label: "見送り" },
@@ -104,8 +106,8 @@ export default async function LeadsPage({
         <div>
           <h1>リード管理（LINE登録・面談）</h1>
           <p>
-            送付者はクリエイターID・送付アカウント・返信日・LINE誘導日までを登録します。
-            <strong>LINE登録の有無と面談の記録はこの画面で行います。</strong>
+            送付者が登録するのは<strong>LINE誘導日まで</strong>です（申告）。
+            <strong>実際にLINE登録されたかの確認と面談の記録は、この画面で行います。</strong>
           </p>
         </div>
       </div>
@@ -123,6 +125,7 @@ export default async function LeadsPage({
           steps={[
             { label: "DM送付", n: monthTotals.sent },
             { label: "返信", n: monthTotals.reply },
+            { label: "LINE誘導", n: counts.guided },
             { label: "LINE登録", n: counts.line },
             { label: "面談実施", n: counts.meeting },
           ]}
@@ -198,13 +201,22 @@ export default async function LeadsPage({
                 defaultValue={editable?.replied_at ?? today()}
               />
             </label>
+            <label className="field grow">
+              <span>LINE誘導日（送付者の申告）</span>
+              <input
+                type="date"
+                name="line_guided_at"
+                max={today()}
+                defaultValue={editable?.line_guided_at ?? ""}
+              />
+            </label>
           </div>
 
           <div className="milestones">
             <div className="milestone">
               <Check
                 name="has_line"
-                label="LINE登録あり"
+                label="LINE登録を確認"
                 checked={Boolean(editable?.line_at)}
               />
               <input
@@ -301,6 +313,7 @@ export default async function LeadsPage({
                 <th>送付アカウント</th>
                 <th>状態</th>
                 <th>返信</th>
+                <th>LINE誘導</th>
                 <th>LINE登録</th>
                 <th>面談</th>
                 <th></th>
@@ -329,6 +342,7 @@ export default async function LeadsPage({
                     </span>
                   </td>
                   <td className="muted">{l.replied_at ?? "-"}</td>
+                  <td className="muted">{l.line_guided_at ?? "-"}</td>
                   <td>
                     <MilestoneCell
                       leadId={l.id}
@@ -362,7 +376,7 @@ export default async function LeadsPage({
               ))}
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="empty">
+                  <td colSpan={9} className="empty">
                     該当するリードがありません。
                   </td>
                 </tr>
@@ -421,7 +435,7 @@ function MilestoneCell({
   onLabel,
 }: {
   leadId: number;
-  field: "line" | "meeting";
+  field: "guided" | "line" | "meeting";
   date: string | null;
   onLabel: string;
 }) {

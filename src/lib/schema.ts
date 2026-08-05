@@ -9,7 +9,7 @@
  * スキーマを変更したらこの番号を上げる。番号が変わったときだけ
  * SCHEMA_SQL を流し直すため、通常のリクエストでは追加の往復が発生しない。
  */
-export const SCHEMA_VERSION = "3";
+export const SCHEMA_VERSION = "4";
 
 export const SCHEMA_SQL = `
 -- 運用者・管理者
@@ -98,15 +98,22 @@ CREATE TABLE IF NOT EXISTS leads (
   account_id     INTEGER REFERENCES tiktok_accounts(id) ON DELETE SET NULL,
   creator_handle TEXT    NOT NULL,
   creator_name   TEXT    NOT NULL DEFAULT '',
-  stage          TEXT    NOT NULL DEFAULT 'replied', -- replied | line | meeting | closed | lost
+  stage          TEXT    NOT NULL DEFAULT 'replied', -- replied | guided | line | meeting | lost
   replied_at     TEXT,
-  line_at        TEXT,
+  line_guided_at TEXT,                            -- 作業者が申告したLINE誘導日
+  line_at        TEXT,                            -- 管理者が確認したLINE登録日
   meeting_at     TEXT,
   closed_at      TEXT,
   memo           TEXT    NOT NULL DEFAULT '',
   created_at     TEXT    NOT NULL,
   updated_at     TEXT    NOT NULL
 );
+-- 既存環境向け：作業者が申告する「LINE誘導日」を、管理者が確認する
+-- 「LINE登録日(line_at)」とは別に持つ。過去データは誘導日として引き継ぐ。
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS line_guided_at TEXT;
+UPDATE leads SET line_guided_at = line_at
+ WHERE line_guided_at IS NULL AND line_at IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_leads_user ON leads(user_id);
 CREATE INDEX IF NOT EXISTS idx_leads_stage ON leads(stage);
 
