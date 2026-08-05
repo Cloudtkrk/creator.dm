@@ -32,22 +32,26 @@ export default async function MyHistoryPage({
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : thisMonth();
   const { start, end } = monthRange(month);
 
-  const settings = await getSettings();
+  // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
+  const [settings, totals, leads, reward, series, accounts, byAccount, history] =
+    await Promise.all([
+      getSettings(),
+      totalsInRange(start, end, me.id),
+      leadCounts(start, end, me.id),
+      computeReward(me.id, month),
+      dailySeries(addDays(today(), -29), today(), me.id),
+      listAccounts(me.id),
+      totalsByAccount(start, end),
+      Promise.all(
+        recentMonths(thisMonth(), 6).map(async (m) => ({
+          month: m,
+          r: await computeReward(me.id, m),
+        })),
+      ),
+    ]);
+
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
-
-  const totals = await totalsInRange(start, end, me.id);
-  const leads = await leadCounts(start, end, me.id);
-  const reward = await computeReward(me.id, month);
-  const series = await dailySeries(addDays(today(), -29), today(), me.id);
-  const accounts = await listAccounts(me.id);
-  const byAccount = await totalsByAccount(start, end);
-  const history = await Promise.all(
-    recentMonths(thisMonth(), 6).map(async (m) => ({
-      month: m,
-      r: await computeReward(me.id, m),
-    })),
-  );
 
   return (
     <>

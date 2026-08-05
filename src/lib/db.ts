@@ -171,6 +171,9 @@ export async function setSetting(key: string, value: string): Promise<void> {
     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
     [key, value],
   );
+  // 閾値を変えたらアラートの一時保持を捨てて、次の表示で計算し直す
+  const { invalidateAlerts } = await import("./alerts");
+  invalidateAlerts();
 }
 
 export function settingNumber(

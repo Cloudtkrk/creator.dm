@@ -4,8 +4,8 @@ import { requireAdmin } from "@/lib/auth";
 import { formatDateTime } from "@/lib/date";
 import {
   getTemplate,
-  getUser,
   listTemplateRevisions,
+  listUsers,
 } from "@/lib/queries";
 import { TEMPLATE_KINDS, TEMPLATE_KIND_LABEL } from "@/lib/types";
 import { Flash } from "@/components/ui";
@@ -32,14 +32,18 @@ export default async function TemplateDetail({
   const template = await getTemplate(Number(id));
   if (!template) notFound();
 
-  const owner = await getUser(template.user_id);
-  // JSX内では await できないため、更新者名まで含めて先に読み込む
-  const revisions = await Promise.all(
-    (await listTemplateRevisions(template.id)).map(async (r) => ({
-      ...r,
-      changedByName: (await getUser(r.changed_by ?? 0))?.name ?? "不明",
-    })),
-  );
+  // JSX内では await できないため、更新者名まで含めて先に読み込む。
+  // 版ごとに1本引くと版数分の往復になるので、名前は一覧から引き当てる
+  const [users, revisionRows] = await Promise.all([
+    listUsers({ includeInactive: true }),
+    listTemplateRevisions(template.id),
+  ]);
+  const nameById = new Map(users.map((u) => [u.id, u.name]));
+  const owner = users.find((u) => u.id === template.user_id) ?? null;
+  const revisions = revisionRows.map((r) => ({
+    ...r,
+    changedByName: nameById.get(r.changed_by ?? 0) ?? "不明",
+  }));
 
   return (
     <>

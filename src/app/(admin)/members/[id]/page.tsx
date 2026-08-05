@@ -32,16 +32,19 @@ export default async function MemberDetail({
   if (!user) notFound();
 
   const month = thisMonth();
-  const current = await getEffectiveRate(user.id, month);
-  const rateCards = await listRateCards(user.id);
-  const accounts = await listAccounts(user.id);
-  const templates = await listTemplates(user.id);
-  const history = await Promise.all(
-    recentMonths(month, 6).map(async (m) => ({
-      month: m,
-      r: await computeReward(user.id, m),
-    })),
-  );
+  // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
+  const [current, rateCards, accounts, templates, history] = await Promise.all([
+    getEffectiveRate(user.id, month),
+    listRateCards(user.id),
+    listAccounts(user.id),
+    listTemplates(user.id),
+    Promise.all(
+      recentMonths(month, 6).map(async (m) => ({
+        month: m,
+        r: await computeReward(user.id, m),
+      })),
+    ),
+  ]);
   const thisMonthReward = history[0].r;
 
   return (

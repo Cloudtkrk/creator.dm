@@ -23,9 +23,17 @@ export default async function MyEntryPage({
   const sp = await searchParams;
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : today();
 
+  const week = lastNDates(date, 7);
+  // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
+  const [allAccounts, existing, seriesRows, weekTotals] = await Promise.all([
+    listAccounts(me.id),
+    reportsOnDate(date, me.id),
+    dailySeries(week[0], date, me.id),
+    totalsInRange(week[0], date, me.id),
+  ]);
+
   // 停止中・BANのアカウントは入力対象から外す（誤入力を防ぐ）
-  const accounts = (await listAccounts(me.id)).filter((a) => a.status === "active");
-  const existing = await reportsOnDate(date, me.id);
+  const accounts = allAccounts.filter((a) => a.status === "active");
 
   const rows: EntryRow[] = accounts.map((a) => {
     const cur = existing.get(a.id);
@@ -44,11 +52,7 @@ export default async function MyEntryPage({
     .map((r) => `${r.id}:${r.sent}:${r.reply}`)
     .join(",")}`;
 
-  const week = lastNDates(date, 7);
-  const series = new Map(
-    (await dailySeries(week[0], date, me.id)).map((d) => [d.date, d] as const),
-  );
-  const weekTotals = await totalsInRange(week[0], date, me.id);
+  const series = new Map(seriesRows.map((d) => [d.date, d] as const));
   const alreadySaved = existing.size > 0;
 
   return (

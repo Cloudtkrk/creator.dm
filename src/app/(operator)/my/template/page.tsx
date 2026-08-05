@@ -1,6 +1,6 @@
 import { requireOperator } from "@/lib/auth";
 import { formatDateTime } from "@/lib/date";
-import { getUser, listTemplateRevisions, listTemplates } from "@/lib/queries";
+import { listTemplates, listUsers, revisionsByTemplateFor } from "@/lib/queries";
 import { TEMPLATE_KINDS, type TemplateKind } from "@/lib/types";
 import CopyButton from "@/components/CopyButton";
 import { Flash } from "@/components/ui";
@@ -22,18 +22,21 @@ export default async function MyTemplatePage({
   const me = await requireOperator();
   const sp = await searchParams;
 
-  // JSX内では await できないため、履歴と更新者名までまとめて読み込んでおく
-  const templates = await Promise.all(
-    (await listTemplates(me.id)).map(async (tpl) => ({
-      tpl,
-      revisions: await Promise.all(
-        (await listTemplateRevisions(tpl.id)).map(async (r) => ({
-          ...r,
-          changedByName: (await getUser(r.changed_by ?? 0))?.name ?? "不明",
-        })),
-      ),
+  // JSX内では await できないため、履歴と更新者名までまとめて読み込んでおく。
+  // 版ごとに名前を引くと版数分の往復になるので、名前は一覧から引き当てる
+  const [tpls, users, revisions] = await Promise.all([
+    listTemplates(me.id),
+    listUsers({ includeInactive: true }),
+    revisionsByTemplateFor(me.id),
+  ]);
+  const nameById = new Map(users.map((u) => [u.id, u.name]));
+  const templates = tpls.map((tpl) => ({
+    tpl,
+    revisions: (revisions.get(tpl.id) ?? []).map((r) => ({
+      ...r,
+      changedByName: nameById.get(r.changed_by ?? 0) ?? "不明",
     })),
-  );
+  }));
 
   const byKind = (kind: TemplateKind) =>
     templates.filter((t) => t.tpl.kind === kind);

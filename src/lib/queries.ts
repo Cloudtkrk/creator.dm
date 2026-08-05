@@ -514,3 +514,26 @@ export function listTemplateRevisions(
     [templateId],
   );
 }
+
+/**
+ * ある運用者の全文章の変更履歴を1本で引く。文章ごとに引くと文章数だけ
+ * 往復が増えるため、テンプレート一覧と同時に投げられるこちらを使う。
+ */
+export async function revisionsByTemplateFor(
+  userId: number,
+): Promise<Map<number, TemplateRevision[]>> {
+  const rows = await query<TemplateRevision>(
+    `SELECT r.* FROM template_revisions r
+       JOIN templates t ON t.id = r.template_id
+      WHERE t.user_id = ?
+      ORDER BY r.template_id, r.version DESC`,
+    [userId],
+  );
+  const out = new Map<number, TemplateRevision[]>();
+  for (const r of rows) {
+    const list = out.get(r.template_id);
+    if (list) list.push(r);
+    else out.set(r.template_id, [r]);
+  }
+  return out;
+}

@@ -25,15 +25,26 @@ export default async function DailyPage({
   const sp = await searchParams;
 
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : today();
-  const operators = (await listUsers()).filter((u) => u.role === "operator");
+  const week = lastNDates(date, 7);
+
+  // 対象者は一覧から決まるので、ここだけは先に引く必要がある
+  const [allUsers, settings] = await Promise.all([listUsers(), getSettings()]);
+  const operators = allUsers.filter((u) => u.role === "operator");
   const targetUserId = Number(sp.user) || operators[0]?.id || 0;
   const targetName =
     operators.find((u) => u.id === targetUserId)?.name ?? "運用者未登録";
 
-  const accounts = await listAccounts(targetUserId);
-  const existing = await reportsOnDate(date, targetUserId);
+  // 対象者が決まったあとの読み込みは、1本ずつ待たずまとめて投げる
+  const [accounts, existing, dayTotals, weekSeries, weekTotals] =
+    await Promise.all([
+      listAccounts(targetUserId),
+      reportsOnDate(date, targetUserId),
+      totalsInRange(date, date, targetUserId),
+      dailySeries(week[0], date, targetUserId),
+      totalsInRange(week[0], date, targetUserId),
+    ]);
+  const seriesMap = new Map(weekSeries.map((d) => [d.date, d]));
 
-  const settings = await getSettings();
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
 
@@ -44,12 +55,6 @@ export default async function DailyPage({
       return `${a.id}:${cur?.sent ?? 0}:${cur?.reply ?? 0}`;
     })
     .join(",")}`;
-
-  const dayTotals = await totalsInRange(date, date, targetUserId);
-  const week = lastNDates(date, 7);
-  const weekSeries = await dailySeries(week[0], date, targetUserId);
-  const seriesMap = new Map(weekSeries.map((d) => [d.date, d]));
-  const weekTotals = await totalsInRange(week[0], date, targetUserId);
 
   const goalTotal = accounts
     .filter((a) => a.status === "active")

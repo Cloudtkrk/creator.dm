@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Item = { href: string; label: string; icon: string; badge?: number };
+type Item = {
+  href: string;
+  label: string;
+  icon: string;
+  /** 後から差し込まれる要素（アラート件数など）を受け取る */
+  badge?: React.ReactNode;
+};
 
 export default function Nav({
   items,
@@ -26,7 +32,7 @@ export default function Nav({
         {item.icon}
       </span>
       {item.label}
-      {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
+      {item.badge}
     </Link>
   );
 

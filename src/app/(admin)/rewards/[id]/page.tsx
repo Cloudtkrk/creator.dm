@@ -31,17 +31,20 @@ export default async function RewardDetail({
   const user = await getUser(Number(id));
   if (!user) notFound();
 
-  const r = await computeReward(user.id, month);
   const { start, end } = monthRange(month);
-  const series = await dailySeries(start, end, user.id);
-  const accounts = await listAccounts(user.id);
-  const byAccount = await totalsByAccount(start, end);
-  const history = await Promise.all(
-    recentMonths(thisMonth(), 6).map(async (m) => ({
-      month: m,
-      r: await computeReward(user.id, m),
-    })),
-  );
+  // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
+  const [r, series, accounts, byAccount, history] = await Promise.all([
+    computeReward(user.id, month),
+    dailySeries(start, end, user.id),
+    listAccounts(user.id),
+    totalsByAccount(start, end),
+    Promise.all(
+      recentMonths(thisMonth(), 6).map(async (m) => ({
+        month: m,
+        r: await computeReward(user.id, m),
+      })),
+    ),
+  ]);
 
   const lines = [
     { label: `DM送付 ${r.sent.toLocaleString("ja-JP")}件 × ${yen(r.rate.dm_unit_price)}`, amount: r.dmAmount },

@@ -9,6 +9,7 @@ import {
   assertOwnsAccount,
   destroySession,
   hashPassword,
+  invalidateUser,
   requireAdmin,
   requireUser,
 } from "@/lib/auth";
@@ -508,6 +509,7 @@ export async function saveMember(fd: FormData) {
       "UPDATE users SET name = ?, login_id = ?, role = ?, memo = ? WHERE id = ?",
       [name, loginId, role, str(fd, "memo"), id],
     );
+    invalidateUser(id); // 権限や氏名の変更をすぐ反映する
     if (password) {
       if (password.length < 8) {
         back("/members", "パスワードは8文字以上にしてください。", "err");
@@ -547,6 +549,7 @@ export async function toggleMemberActive(fd: FormData) {
     row.is_active ? 0 : 1,
     id,
   ]);
+  invalidateUser(id); // 無効化をすぐ反映する
   back(
     "/members",
     `${row.name} を${row.is_active ? "無効化" : "有効化"}しました。`,

@@ -38,6 +38,31 @@ const LEVEL_ORDER: Record<AlertLevel, number> = {
 const pct = (n: number) => `${n.toFixed(1)}%`;
 
 /**
+ * アラートは全画面のサイドバー（件数バッジ）から呼ばれるうえ、集計に数本の
+ * クエリが要る。直近の結果を短時間だけ使い回して往復を減らす。
+ * 閾値を変えたときは setSetting から invalidateAlerts() が呼ばれるので、
+ * 設定変更が遅れて反映されることはない。
+ */
+const MEMO_MS = 60_000;
+let memo: { at: number; value: Promise<Alert[]> } | undefined;
+
+export function invalidateAlerts() {
+  memo = undefined;
+}
+
+export function alertsSnapshot(): Promise<Alert[]> {
+  const now = Date.now();
+  if (!memo || now - memo.at > MEMO_MS) {
+    const value = computeAlerts().catch((e) => {
+      memo = undefined; // 失敗した結果は残さない
+      throw e;
+    });
+    memo = { at: now, value };
+  }
+  return memo.value;
+}
+
+/**
  * 全ユーザー分のアラートを計算する。userId を渡すとその人の分だけに絞る。
  * 判定は「直近 alert_window_days 日」を対象とし、母数が alert_min_sent
  * 未満の場合は返信率の判定をスキップする（少数だと率が暴れるため）。

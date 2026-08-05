@@ -1,9 +1,20 @@
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/auth";
-import { computeAlerts } from "@/lib/alerts";
+import { alertsSnapshot } from "@/lib/alerts";
 import Nav from "@/components/Nav";
 import { logout } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * サイドバーのアラート件数。集計に数本のクエリが要るため、これを待って
+ * 画面全体が遅くなることのないよう Suspense の外に出して後から差し込む。
+ */
+async function AlertBadge() {
+  const urgent = (await alertsSnapshot()).filter((a) => a.level !== "info").length;
+  if (!urgent) return null;
+  return <span className="nav-badge">{urgent}</span>;
+}
 
 /**
  * 管理者向けのレイアウト。運用者は requireAdmin により /my へ送られるため、
@@ -15,11 +26,19 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const user = await requireAdmin();
-  const urgent = (await computeAlerts()).filter((a) => a.level !== "info").length;
 
   const main = [
     { href: "/", label: "ダッシュボード", icon: "◫" },
-    { href: "/alerts", label: "アラート", icon: "⚠", badge: urgent },
+    {
+      href: "/alerts",
+      label: "アラート",
+      icon: "⚠",
+      badge: (
+        <Suspense fallback={null}>
+          <AlertBadge />
+        </Suspense>
+      ),
+    },
     { href: "/leads", label: "リード管理", icon: "☎" },
     { href: "/templates", label: "送付文章", icon: "✉" },
     { href: "/accounts", label: "アカウント", icon: "◎" },

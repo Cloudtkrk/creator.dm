@@ -22,10 +22,12 @@ export default async function TemplatesPage({
   const me = await requireAdmin();
   const sp = await searchParams;
 
-  const users = await listUsers();
-  const operators = users.filter((u) => u.role === "operator");
   const filterUser = Number(sp.user) || 0;
-  const templates = await listTemplates(filterUser || undefined);
+  const [users, templates] = await Promise.all([
+    listUsers(),
+    listTemplates(filterUser || undefined),
+  ]);
+  const operators = users.filter((u) => u.role === "operator");
 
   return (
     <>

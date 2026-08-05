@@ -94,10 +94,39 @@ export async function currentUser(): Promise<User | null> {
   return loadActiveUser(id);
 }
 
-// レイアウトとページの両方から呼ばれるため、リクエスト内で1回にまとめる
-const loadActiveUser = cache((id: number) =>
-  queryOne<User>("SELECT * FROM users WHERE id = ? AND is_active = 1", [id]),
-);
+/**
+ * ログイン中のユーザーの読み込み。
+ *
+ * - `cache()` でリクエスト内の重複（レイアウト＋ページ）をまとめる
+ * - さらに数秒だけプロセス内に保持する。全画面の先頭で必ず1本走るクエリで、
+ *   これを待ってから他の読み込みが始まるため、往復1回分がそのまま全画面の
+ *   表示時間に乗っていた。メンバーの停止・権限変更を行ったときは
+ *   invalidateUser() で捨てるので、反映が遅れるのは他インスタンス側だけ、
+ *   最長でも USER_MEMO_MS。
+ */
+const USER_MEMO_MS = 10_000;
+const userMemo = new Map<number, { at: number; value: Promise<User | null> }>();
+
+export function invalidateUser(id?: number) {
+  if (id === undefined) userMemo.clear();
+  else userMemo.delete(id);
+}
+
+const loadActiveUser = cache((id: number): Promise<User | null> => {
+  const now = Date.now();
+  const hit = userMemo.get(id);
+  if (hit && now - hit.at <= USER_MEMO_MS) return hit.value;
+
+  const value = queryOne<User>(
+    "SELECT * FROM users WHERE id = ? AND is_active = 1",
+    [id],
+  ).catch((e) => {
+    userMemo.delete(id); // 失敗した結果は残さない
+    throw e;
+  });
+  userMemo.set(id, { at: now, value });
+  return value;
+});
 
 /** 未ログインなら /login へ飛ばす。 */
 export async function requireUser(): Promise<User> {

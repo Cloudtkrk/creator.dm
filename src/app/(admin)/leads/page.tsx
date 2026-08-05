@@ -67,21 +67,31 @@ export default async function LeadsPage({
   const me = await requireAdmin();
   const sp = await searchParams;
 
-  const users = await listUsers();
-  const operators = users.filter((u) => u.role === "operator");
   const filterUser = Number(sp.user) || undefined;
-
   const page = Math.max(1, Number(sp.page) || 1);
-  const { leads, total, pages } = await listLeadsPage(
-    {
-      userId: filterUser,
-      stage: sp.stage || undefined,
-      keyword: sp.q || undefined,
-    },
-    page,
-  );
+  const month = thisMonth();
+  const { start, end } = monthRange(month);
 
-  const accounts = await listAccounts();
+  // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
+  const [users, leadPage, accounts, editable, counts, monthTotals] =
+    await Promise.all([
+      listUsers(),
+      listLeadsPage(
+        {
+          userId: filterUser,
+          stage: sp.stage || undefined,
+          keyword: sp.q || undefined,
+        },
+        page,
+      ),
+      listAccounts(),
+      sp.edit ? getLead(Number(sp.edit)) : Promise.resolve(null),
+      leadCounts(start, end),
+      totalsInRange(start, end),
+    ]);
+  const { leads, total, pages } = leadPage;
+  const operators = users.filter((u) => u.role === "operator");
+
   // 行ごとに find すると件数×アカウント数の走査になるため、先に索引を作る
   const accountById = new Map(accounts.map((a) => [a.id, a]));
   const userById = new Map(users.map((u) => [u.id, u]));
@@ -93,12 +103,6 @@ export default async function LeadsPage({
     q.set("page", String(n));
     return `/leads?${q}`;
   };
-  const editable = sp.edit ? await getLead(Number(sp.edit)) : null;
-
-  const month = thisMonth();
-  const { start, end } = monthRange(month);
-  const counts = await leadCounts(start, end);
-  const monthTotals = await totalsInRange(start, end);
 
   return (
     <>

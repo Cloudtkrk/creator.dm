@@ -20,7 +20,7 @@ import {
   totalsByUser,
   totalsInRange,
 } from "@/lib/queries";
-import { computeAlerts } from "@/lib/alerts";
+import { alertsSnapshot } from "@/lib/alerts";
 import { ACCOUNT_STATUS_LABEL } from "@/lib/types";
 import { Funnel, RateBadge, Stat, TrendChart, yen } from "@/components/ui";
 
@@ -36,25 +36,42 @@ export default async function Dashboard({
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : thisMonth();
   const { start, end } = monthRange(month);
 
-  const settings = await getSettings();
+  const day = today();
+  // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
+  const [
+    settings,
+    monthTotals,
+    todayTotals,
+    leads,
+    series,
+    allAlerts,
+    allUsers,
+    byUser,
+    leadsByUser,
+    accounts,
+    byAccount,
+    // 全員分をまとめて計算する（1人ずつ呼ぶと人数×5本のクエリになる）
+    rewards,
+  ] = await Promise.all([
+    getSettings(),
+    totalsInRange(start, end),
+    totalsInRange(day, day),
+    leadCounts(start, end),
+    dailySeries(addDays(day, -29), day),
+    alertsSnapshot(),
+    listUsers(),
+    totalsByUser(start, end),
+    leadCountsByUser(start, end),
+    listAccounts(),
+    totalsByAccount(start, end),
+    computeRewards(month),
+  ]);
+
   const warn = settingNumber(settings, "alert_reply_rate_warn");
   const danger = settingNumber(settings, "alert_reply_rate_danger");
+  const alerts = allAlerts.filter((a) => a.level !== "info");
+  const users = allUsers.filter((u) => u.role === "operator");
 
-  const day = today();
-  const monthTotals = await totalsInRange(start, end);
-  const todayTotals = await totalsInRange(day, day);
-  const leads = await leadCounts(start, end);
-  const series = await dailySeries(addDays(day, -29), day);
-  const alerts = (await computeAlerts()).filter((a) => a.level !== "info");
-
-  const users = (await listUsers()).filter((u) => u.role === "operator");
-  const byUser = await totalsByUser(start, end);
-  const leadsByUser = await leadCountsByUser(start, end);
-  const accounts = await listAccounts();
-  const byAccount = await totalsByAccount(start, end);
-
-  // 全員分をまとめて計算する（1人ずつ呼ぶと人数×5本のクエリになる）
-  const rewards = await computeRewards(month);
   const rewardTotal = users.reduce(
     (s, u) => s + (rewards.get(u.id)?.total ?? 0),
     0,

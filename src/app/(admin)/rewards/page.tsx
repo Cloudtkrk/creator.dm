@@ -23,10 +23,11 @@ export default async function RewardsPage({
   const sp = await searchParams;
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : thisMonth();
 
-  const operators = (await listUsers({ includeInactive: true })).filter(
-    (u) => u.role === "operator",
-  );
-  const rewards = await computeRewards(month);
+  const [allUsers, rewards] = await Promise.all([
+    listUsers({ includeInactive: true }),
+    computeRewards(month),
+  ]);
+  const operators = allUsers.filter((u) => u.role === "operator");
   const rows = operators.map((u) => ({ user: u, r: rewards.get(u.id)! }));
   const visible = rows.filter((x) => x.user.is_active || x.r.total !== 0);
 

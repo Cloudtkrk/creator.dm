@@ -35,15 +35,24 @@ export default async function MyLeadsPage({
   const sp = await searchParams;
 
   const page = Math.max(1, Number(sp.page) || 1);
-  const { leads, total, pages } = await listLeadsPage(
-    {
-      userId: me.id,
-      stage: sp.stage || undefined,
-      keyword: sp.q || undefined,
-    },
-    page,
-  );
-  const accounts = await listAccounts(me.id);
+  const { start, end } = monthRange(thisMonth());
+
+  // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
+  const [leadPage, accounts, editing, counts] = await Promise.all([
+    listLeadsPage(
+      {
+        userId: me.id,
+        stage: sp.stage || undefined,
+        keyword: sp.q || undefined,
+      },
+      page,
+    ),
+    listAccounts(me.id),
+    sp.edit ? getLead(Number(sp.edit)) : Promise.resolve(null),
+    leadCounts(start, end, me.id),
+  ]);
+  const { leads, total, pages } = leadPage;
+  const editable = editing && editing.user_id === me.id ? editing : null;
   const accountById = new Map(accounts.map((a) => [a.id, a]));
   const pageHref = (n: number) => {
     const q = new URLSearchParams();
@@ -52,11 +61,6 @@ export default async function MyLeadsPage({
     q.set("page", String(n));
     return `/my/leads?${q}`;
   };
-  const editing = sp.edit ? await getLead(Number(sp.edit)) : null;
-  const editable = editing && editing.user_id === me.id ? editing : null;
-
-  const { start, end } = monthRange(thisMonth());
-  const counts = await leadCounts(start, end, me.id);
 
   return (
     <>

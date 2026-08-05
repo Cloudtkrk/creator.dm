@@ -1012,3 +1012,55 @@ label.check input[type="checkbox"] {
   font-size: 18px;
   font-variant-numeric: tabular-nums;
 }
+
+/* --- 読み込み中の骨組み ------------------------------------------- */
+
+.skeleton {
+  padding: 4px 0;
+}
+.sk-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--border) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: sk 1.2s ease-in-out infinite;
+  margin-bottom: 10px;
+}
+.sk-title {
+  width: 240px;
+  height: 22px;
+}
+.sk-sub {
+  width: 380px;
+  max-width: 80%;
+  height: 12px;
+  margin-bottom: 20px;
+}
+.sk-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.sk-card .sk-line:last-child {
+  margin-bottom: 0;
+}
+@keyframes sk {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-line {
+    animation: none;
+  }
+}

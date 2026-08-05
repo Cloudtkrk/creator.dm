@@ -21,15 +21,16 @@ export default async function MembersPage({
   await requireAdmin();
   const sp = await searchParams;
 
-  const users = await listUsers({ includeInactive: true });
-  const editing = users.find((u) => u.id === Number(sp.edit));
-  const accounts = await listAccounts();
-
   const month = thisMonth();
   const { start, end } = monthRange(month);
-  const byUser = await totalsByUser(start, end);
-  // JSX内では await できないため、全員分の単価を1本のクエリで先に引いておく
-  const rates = await effectiveRatesFor(month);
+  // JSX内では await できないため、必要なものを1回でまとめて読み込む
+  const [users, accounts, byUser, rates] = await Promise.all([
+    listUsers({ includeInactive: true }),
+    listAccounts(),
+    totalsByUser(start, end),
+    effectiveRatesFor(month),
+  ]);
+  const editing = users.find((u) => u.id === Number(sp.edit));
 
   return (
     <>
