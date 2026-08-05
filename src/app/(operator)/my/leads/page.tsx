@@ -43,7 +43,7 @@ export default async function MyLeadsPage({
     <>
       <div className="op-head">
         <div className="op-date">
-          LINE誘導の記録
+          返信者管理
           <small>
             返信のあったクリエイターを登録し、LINEに誘導できたら日付を入れてください。
             面談の記録は管理者が行います。
