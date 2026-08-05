@@ -55,6 +55,11 @@ export default function DailyEntryForm({
       <input type="hidden" name="target_user" value={targetUserId} />
       <input type="hidden" name="back_to" value={backTo} />
 
+      <p className="entry-guide">
+        <b>返信数は「有効な返信」だけを数えてください。</b>
+        お断りやスタンプのみなど、コミュニケーションに繋がらなかったものは含めません。
+      </p>
+
       {rows.map((r) => {
         const v = values[r.id] ?? { sent: 0, reply: 0 };
         const bad = v.reply > v.sent;
@@ -95,7 +100,7 @@ export default function DailyEntryForm({
                 />
               </label>
               <label>
-                返信数
+                返信数<span className="fine">有効な返信のみ</span>
                 <input
                   type="number"
                   inputMode="numeric"

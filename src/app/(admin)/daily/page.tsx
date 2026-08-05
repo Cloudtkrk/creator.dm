@@ -144,6 +144,10 @@ export default async function DailyPage({
           </div>
         ) : (
           <form action={saveDailyReports}>
+            <p className="entry-guide">
+              <b>返信数は「有効な返信」だけを数えます。</b>
+              お断りやスタンプのみなど、コミュニケーションに繋がらなかったものは含めません。
+            </p>
             <input type="hidden" name="date" value={date} />
             <input type="hidden" name="target_user" value={targetUserId} />
             <input type="hidden" name="back_to" value="/daily" />
@@ -157,7 +161,7 @@ export default async function DailyPage({
                       送付数
                     </th>
                     <th className="num" style={{ width: 110 }}>
-                      返信数
+                      返信数<span className="fine">有効な返信のみ</span>
                     </th>
                     <th className="num">返信率</th>
                     <th style={{ minWidth: 220 }}>メモ</th>
