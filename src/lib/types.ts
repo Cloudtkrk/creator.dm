@@ -68,19 +68,24 @@ export type TemplateRevision = {
   changed_at: string;
 };
 
+// "closed"（成約）は運用対象から外したが、過去に登録されたデータが
+// 表示できるよう型とラベルだけ残している。新たに設定されることはない。
 export type LeadStage = "replied" | "line" | "meeting" | "closed" | "lost";
 
 export const LEAD_STAGES: { value: LeadStage; label: string }[] = [
   { value: "replied", label: "返信あり" },
   { value: "line", label: "LINE登録" },
   { value: "meeting", label: "面談実施" },
-  { value: "closed", label: "成約" },
   { value: "lost", label: "見送り" },
 ];
 
-export const LEAD_STAGE_LABEL: Record<LeadStage, string> = Object.fromEntries(
-  LEAD_STAGES.map((s) => [s.value, s.label]),
-) as Record<LeadStage, string>;
+export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
+  ...(Object.fromEntries(LEAD_STAGES.map((s) => [s.value, s.label])) as Record<
+    LeadStage,
+    string
+  >),
+  closed: "成約",
+};
 
 /**
  * ステージは日付から自動的に決まる。手入力のステージと日付が食い違うと
@@ -89,10 +94,8 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = Object.fromEntries(
 export function deriveStage(v: {
   lineAt: string | null;
   meetingAt: string | null;
-  closedAt: string | null;
   lost?: boolean;
 }): LeadStage {
-  if (v.closedAt) return "closed";
   if (v.lost) return "lost";
   if (v.meetingAt) return "meeting";
   if (v.lineAt) return "line";

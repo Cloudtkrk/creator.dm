@@ -126,7 +126,6 @@ export default async function MyHistoryPage({
                   : "-",
             },
             { label: "面談実施", n: leads.meeting },
-            { label: "成約", n: leads.closed },
           ]}
         />
       </div>

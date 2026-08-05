@@ -147,14 +147,6 @@ export default async function Dashboard({
                     ? `LINEの${((leads.meeting / leads.line) * 100).toFixed(1)}%`
                     : "-",
               },
-              {
-                label: "成約",
-                n: leads.closed,
-                sub:
-                  leads.meeting > 0
-                    ? `面談の${((leads.closed / leads.meeting) * 100).toFixed(1)}%`
-                    : "-",
-              },
             ]}
           />
         </div>
@@ -215,11 +207,7 @@ export default async function Dashboard({
               <tbody>
                 {users.map((u) => {
                   const t = byUser.get(u.id) ?? { sent: 0, reply: 0 };
-                  const lc = leadsByUser.get(u.id) ?? {
-                    line: 0,
-                    meeting: 0,
-                    closed: 0,
-                  };
+                  const lc = leadsByUser.get(u.id) ?? { line: 0, meeting: 0 };
                   const accCount = accounts.filter(
                     (a) => a.user_id === u.id,
                   ).length;

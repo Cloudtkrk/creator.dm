@@ -27,7 +27,6 @@ const FILTERS: { value: string; label: string }[] = [
   { value: "replied", label: "返信のみ" },
   { value: "line", label: "LINE登録済み" },
   { value: "meeting", label: "面談済み" },
-  { value: "closed", label: "成約" },
   { value: "lost", label: "見送り" },
 ];
 
@@ -90,7 +89,7 @@ export default async function LeadsPage({
           <h1>リード管理（LINE登録・面談）</h1>
           <p>
             送付者はクリエイターID・送付アカウント・返信日・LINE誘導日までを登録します。
-            <strong>面談と成約の記録はこの画面で行います。</strong>
+            <strong>LINE登録の有無と面談の記録はこの画面で行います。</strong>
           </p>
         </div>
       </div>
@@ -110,7 +109,6 @@ export default async function LeadsPage({
             { label: "返信", n: monthTotals.reply },
             { label: "LINE登録", n: counts.line },
             { label: "面談実施", n: counts.meeting },
-            { label: "成約", n: counts.closed },
           ]}
         />
       </div>
@@ -215,19 +213,6 @@ export default async function LeadsPage({
             </div>
             <div className="milestone">
               <Check
-                name="has_closed"
-                label="成約"
-                checked={Boolean(editable?.closed_at)}
-              />
-              <input
-                type="date"
-                name="closed_at"
-                max={today()}
-                defaultValue={editable?.closed_at ?? ""}
-              />
-            </div>
-            <div className="milestone">
-              <Check
                 name="is_lost"
                 label="見送り"
                 checked={editable?.stage === "lost"}
@@ -302,7 +287,6 @@ export default async function LeadsPage({
                 <th>返信</th>
                 <th>LINE登録</th>
                 <th>面談</th>
-                <th>成約</th>
                 <th></th>
               </tr>
             </thead>
@@ -346,14 +330,6 @@ export default async function LeadsPage({
                     />
                   </td>
                   <td>
-                    <MilestoneCell
-                      leadId={l.id}
-                      field="closed"
-                      date={l.closed_at}
-                      onLabel="成約"
-                    />
-                  </td>
-                  <td>
                     <div className="toolbar">
                       <a className="btn small" href={`/leads?edit=${l.id}`}>
                         編集
@@ -370,7 +346,7 @@ export default async function LeadsPage({
               ))}
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="empty">
+                  <td colSpan={8} className="empty">
                     該当するリードがありません。
                   </td>
                 </tr>
@@ -391,7 +367,7 @@ function MilestoneCell({
   onLabel,
 }: {
   leadId: number;
-  field: "line" | "meeting" | "closed";
+  field: "line" | "meeting";
   date: string | null;
   onLabel: string;
 }) {

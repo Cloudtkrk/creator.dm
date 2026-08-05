@@ -355,18 +355,13 @@ export async function saveLead(fd: FormData) {
   const repliedAt = dateOrNull(fd, "replied_at") ?? today();
   const lineAt = milestoneDate(fd, "has_line", "line_at");
 
-  // 面談・成約・見送りは管理者が管理する。運用者の保存では既存の値を保つ。
+  // 面談と見送りは管理者が管理する。運用者の保存では既存の値を保つ。
   const meetingAt = isAdmin
     ? milestoneDate(fd, "has_meeting", "meeting_at")
     : (existing?.meeting_at ?? null);
-  const closedAt = isAdmin
-    ? milestoneDate(fd, "has_closed", "closed_at")
-    : (existing?.closed_at ?? null);
-  const lost = isAdmin
-    ? isChecked(fd, "is_lost")
-    : existing?.stage === "lost";
+  const lost = isAdmin ? isChecked(fd, "is_lost") : existing?.stage === "lost";
 
-  const stage = deriveStage({ lineAt, meetingAt, closedAt, lost });
+  const stage = deriveStage({ lineAt, meetingAt, lost });
   const name = isAdmin ? str(fd, "creator_name") : (existing?.creator_name ?? "");
   const memo = isAdmin ? str(fd, "memo") : (existing?.memo ?? "");
   const ts = nowIso();
@@ -374,7 +369,7 @@ export async function saveLead(fd: FormData) {
   if (existing) {
     await exec(
       `UPDATE leads SET user_id = ?, account_id = ?, creator_handle = ?, creator_name = ?,
-        stage = ?, replied_at = ?, line_at = ?, meeting_at = ?, closed_at = ?, memo = ?, updated_at = ?
+        stage = ?, replied_at = ?, line_at = ?, meeting_at = ?, memo = ?, updated_at = ?
        WHERE id = ?`,
       [
         targetUserId,
@@ -385,7 +380,6 @@ export async function saveLead(fd: FormData) {
         repliedAt,
         lineAt,
         meetingAt,
-        closedAt,
         memo,
         ts,
         existing.id,
@@ -396,8 +390,8 @@ export async function saveLead(fd: FormData) {
 
   await exec(
     `INSERT INTO leads (user_id, account_id, creator_handle, creator_name, stage,
-       replied_at, line_at, meeting_at, closed_at, memo, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       replied_at, line_at, meeting_at, memo, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       targetUserId,
       accountId,
@@ -407,7 +401,6 @@ export async function saveLead(fd: FormData) {
       repliedAt,
       lineAt,
       meetingAt,
-      closedAt,
       memo,
       ts,
       ts,
@@ -419,13 +412,11 @@ export async function saveLead(fd: FormData) {
 const MILESTONE_COLUMN = {
   line: "line_at",
   meeting: "meeting_at",
-  closed: "closed_at",
 } as const;
 
 const MILESTONE_LABEL = {
   line: "LINE誘導",
   meeting: "面談実施",
-  closed: "成約",
 } as const;
 
 /** 一覧からワンクリックで各段階の到達／取り消しを切り替える。 */
@@ -437,21 +428,17 @@ export async function setLeadMilestone(fd: FormData) {
   const home = returnTo(fd, "/leads");
 
   if (!(field in MILESTONE_COLUMN)) back(home, "不正な操作です。", "err");
-  // 面談と成約の記録は管理者のみ
+  // 面談の記録は管理者のみ
   if (field !== "line" && user.role !== "admin") {
-    back(home, "面談・成約の記録は管理者のみが行えます。", "err");
+    back(home, "面談の記録は管理者のみが行えます。", "err");
   }
 
   const lead = await getLead(id);
   if (!lead) back(home, "リードが見つかりません。", "err");
   assertCanAccessUser(user, lead.user_id);
 
-  const dates = {
-    lineAt: lead.line_at,
-    meetingAt: lead.meeting_at,
-    closedAt: lead.closed_at,
-  };
-  const key = ({ line: "lineAt", meeting: "meetingAt", closed: "closedAt" } as const)[field];
+  const dates = { lineAt: lead.line_at, meetingAt: lead.meeting_at };
+  const key = ({ line: "lineAt", meeting: "meetingAt" } as const)[field];
   dates[key] = on ? (lead[MILESTONE_COLUMN[field]] ?? today()) : null;
 
   await exec(

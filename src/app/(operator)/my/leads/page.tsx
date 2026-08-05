@@ -53,7 +53,7 @@ export default async function MyLeadsPage({
 
       <Flash msg={sp.msg} t={sp.t} />
 
-      <div className="grid cols-3">
+      <div className="grid cols-2">
         <Stat label="今月のLINE誘導" value={counts.line} unit="件" />
         <Stat
           label="今月の面談"
@@ -61,7 +61,6 @@ export default async function MyLeadsPage({
           unit="件"
           sub="管理者が記録します"
         />
-        <Stat label="今月の成約" value={counts.closed} unit="件" sub="管理者が記録します" />
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
