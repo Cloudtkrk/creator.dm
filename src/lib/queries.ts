@@ -453,15 +453,16 @@ export const computeReward = cache(async function computeReward(
 /* ------------------------------------------------------------ templates */
 
 export function listTemplates(userId?: number): Promise<Template[]> {
+  // 送付文（dm）→返信文（reply）の順に並べる
+  const order = "ORDER BY kind, is_active DESC, updated_at DESC";
   if (userId === undefined) {
     return query<Template>(
-      "SELECT * FROM templates ORDER BY is_active DESC, user_id, updated_at DESC",
+      `SELECT * FROM templates ORDER BY user_id, kind, is_active DESC, updated_at DESC`,
     );
   }
-  return query<Template>(
-    "SELECT * FROM templates WHERE user_id = ? ORDER BY is_active DESC, updated_at DESC",
-    [userId],
-  );
+  return query<Template>(`SELECT * FROM templates WHERE user_id = ? ${order}`, [
+    userId,
+  ]);
 }
 
 export function getTemplate(id: number): Promise<Template | null> {

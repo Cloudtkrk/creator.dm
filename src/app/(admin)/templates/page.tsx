@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { formatDateTime } from "@/lib/date";
 import { listTemplates, listUsers } from "@/lib/queries";
+import { TEMPLATE_KINDS, TEMPLATE_KIND_LABEL } from "@/lib/types";
 import { Flash } from "@/components/ui";
 import { saveTemplate, toggleTemplateActive } from "@/app/actions";
 
@@ -32,7 +33,8 @@ export default async function TemplatesPage({
         <div>
           <h1>送付文章の管理</h1>
           <p>
-            運用者ごとのDM文面です。運用者本人も /my から編集できます。編集するたびにバージョンが増え、いつでも過去の文面に戻せます。
+            初回に送るDMと、返信をもらったあとに送る返信文の両方を管理できます。
+            運用者本人も /my から編集でき、編集するたびにバージョンが増えて、いつでも過去の文面に戻せます。
           </p>
         </div>
         <form className="toolbar">
@@ -85,6 +87,16 @@ export default async function TemplatesPage({
               </select>
             </label>
             <label className="field grow">
+              <span>種別</span>
+              <select name="kind" defaultValue="dm">
+                {TEMPLATE_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field grow">
               <span>タイトル（必須）</span>
               <input
                 name="title"
@@ -124,6 +136,7 @@ export default async function TemplatesPage({
           <table>
             <thead>
               <tr>
+                <th>種別</th>
                 <th>タイトル</th>
                 <th>運用者</th>
                 <th className="num">版</th>
@@ -136,6 +149,13 @@ export default async function TemplatesPage({
             <tbody>
               {templates.map((t) => (
                 <tr key={t.id}>
+                  <td>
+                    <span
+                      className={`badge ${t.kind === "reply" ? "warn" : "info"}`}
+                    >
+                      {TEMPLATE_KIND_LABEL[t.kind]}
+                    </span>
+                  </td>
                   <td>
                     <Link href={`/templates/${t.id}`}>{t.title}</Link>
                   </td>
@@ -170,7 +190,7 @@ export default async function TemplatesPage({
               ))}
               {templates.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="empty">
+                  <td colSpan={8} className="empty">
                     まだ文章が登録されていません。
                   </td>
                 </tr>

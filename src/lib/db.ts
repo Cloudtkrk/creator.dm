@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { Pool, types, type PoolClient } from "pg";
-import { DEFAULT_SETTINGS, SCHEMA_SQL } from "./schema";
+import { DEFAULT_SETTINGS, SCHEMA_SQL, SCHEMA_VERSION } from "./schema";
 
 /**
  * PostgreSQL 接続。Vercel の Neon 連携が入れてくれる環境変数をそのまま使う。
@@ -57,11 +57,12 @@ let ready: Promise<void> | undefined;
  * 何もしないので、毎回呼んでも安全。
  */
 async function migrate(): Promise<void> {
-  // 作成済みかどうかを1往復で確認し、済んでいればDDLもロックも省く
-  const applied = await getPool().query(
-    "SELECT to_regclass('public.settings') IS NOT NULL AS ok",
-  );
-  if (applied.rows[0]?.ok) return;
+  // 適用済みのバージョンを1往復で確認し、最新ならDDLもロックも省く。
+  // settings テーブル自体が無い初回はエラーになるので、そのまま適用へ進む。
+  const current = await getPool()
+    .query("SELECT value FROM settings WHERE key = 'schema_version'")
+    .catch(() => null);
+  if (current?.rows[0]?.value === SCHEMA_VERSION) return;
 
   const client = await getPool().connect();
   try {
@@ -74,6 +75,11 @@ async function migrate(): Promise<void> {
           [key, value],
         );
       }
+      await client.query(
+        `INSERT INTO settings (key, value) VALUES ('schema_version', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [SCHEMA_VERSION],
+      );
     } finally {
       await client.query(
         "SELECT pg_advisory_unlock(hashtext('creator_dm_schema'))",

@@ -46,11 +46,35 @@ export type DailyReport = {
   updated_at: string;
 };
 
+/** 送付文（初回DM）と、返信をもらったあとに送るトーク文。 */
+export type TemplateKind = "dm" | "reply";
+
+export const TEMPLATE_KINDS: { value: TemplateKind; label: string; hint: string }[] =
+  [
+    {
+      value: "dm",
+      label: "送付文（初回DM）",
+      hint: "クリエイターに最初に送るDMの本文",
+    },
+    {
+      value: "reply",
+      label: "返信文（返信後のトーク）",
+      hint: "返信をもらったあとに送る、LINEへ誘導するための文面",
+    },
+  ];
+
+export const TEMPLATE_KIND_LABEL: Record<TemplateKind, string> =
+  Object.fromEntries(TEMPLATE_KINDS.map((k) => [k.value, k.label])) as Record<
+    TemplateKind,
+    string
+  >;
+
 export type Template = {
   id: number;
   user_id: number;
   title: string;
   body: string;
+  kind: TemplateKind;
   version: number;
   is_active: number;
   created_at: string;

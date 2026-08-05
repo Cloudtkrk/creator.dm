@@ -7,6 +7,7 @@ import {
   getUser,
   listTemplateRevisions,
 } from "@/lib/queries";
+import { TEMPLATE_KINDS, TEMPLATE_KIND_LABEL } from "@/lib/types";
 import { Flash } from "@/components/ui";
 import {
   deleteTemplate,
@@ -46,8 +47,8 @@ export default async function TemplateDetail({
         <div>
           <h1>{template.title}</h1>
           <p>
-            担当：{owner?.name ?? "-"} / 現在 v{template.version} / 最終更新{" "}
-            {formatDateTime(template.updated_at)}
+            {TEMPLATE_KIND_LABEL[template.kind]} / 担当：{owner?.name ?? "-"} / 現在 v
+            {template.version} / 最終更新 {formatDateTime(template.updated_at)}
           </p>
         </div>
         <div className="toolbar">
@@ -80,6 +81,16 @@ export default async function TemplateDetail({
         </div>
         <form action={saveTemplate}>
           <input type="hidden" name="id" value={template.id} />
+          <label className="field">
+            <span>種別</span>
+            <select name="kind" defaultValue={template.kind}>
+              {TEMPLATE_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="field">
             <span>タイトル</span>
             <input name="title" type="text" defaultValue={template.title} required />

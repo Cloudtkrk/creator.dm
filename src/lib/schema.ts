@@ -5,6 +5,12 @@
  * SQLファイルではなくTSの文字列にしているのは、Vercelの関数バンドルに
  * 確実に同梱させるため（実行時のファイル読み込みが不要になる）。
  */
+/**
+ * スキーマを変更したらこの番号を上げる。番号が変わったときだけ
+ * SCHEMA_SQL を流し直すため、通常のリクエストでは追加の往復が発生しない。
+ */
+export const SCHEMA_VERSION = "2";
+
 export const SCHEMA_SQL = `
 -- 運用者・管理者
 CREATE TABLE IF NOT EXISTS users (
@@ -63,11 +69,14 @@ CREATE TABLE IF NOT EXISTS templates (
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title      TEXT    NOT NULL,
   body       TEXT    NOT NULL,
+  kind       TEXT    NOT NULL DEFAULT 'dm',   -- dm（初回DM） | reply（返信後のトーク）
   version    INTEGER NOT NULL DEFAULT 1,
   is_active  INTEGER NOT NULL DEFAULT 1,
   created_at TEXT    NOT NULL,
   updated_at TEXT    NOT NULL
 );
+-- 既存環境向け：kind 列を後から追加する
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'dm';
 
 -- 文章の変更履歴（誰がいつ何に変えたか）
 CREATE TABLE IF NOT EXISTS template_revisions (

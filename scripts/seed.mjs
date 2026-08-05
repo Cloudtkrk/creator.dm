@@ -10,7 +10,7 @@
  */
 import crypto from "node:crypto";
 import pg from "pg";
-import { DEFAULT_SETTINGS, SCHEMA_SQL } from "../src/lib/schema.ts";
+import { DEFAULT_SETTINGS, SCHEMA_SQL, SCHEMA_VERSION } from "../src/lib/schema.ts";
 
 const url =
   process.env.DATABASE_URL ||
@@ -38,6 +38,11 @@ for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
     [key, value],
   );
 }
+await q(
+  `INSERT INTO settings (key, value) VALUES ('schema_version', $1)
+   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  [SCHEMA_VERSION],
+);
 
 const hash = (pw) => {
   const salt = crypto.randomBytes(16);
@@ -112,6 +117,17 @@ TikTok Shopでの商品PRのご案内でご連絡いたしました。
 サンプル商品は無償でお送りいたします。
 ご興味あればLINEにて詳細をお送りしますので、お気軽にご返信ください。`;
 
+const replyBody = (name) => `ご返信ありがとうございます、${name}です。
+
+詳細のご案内と商品の発送手配をLINEで行っております。
+お手数ですが、下記より友だち追加をお願いいたします。
+
+▼LINE
+https://lin.ee/xxxxxxx
+
+追加後、「TikTok Shopの件」とだけメッセージをいただければ、
+担当より商品詳細と報酬条件をお送りいたします。`;
+
 const month = (offset) => {
   const d = new Date();
   d.setUTCDate(1);
@@ -145,18 +161,22 @@ try {
       ],
     );
 
-    const title = `${pick(GENRES)}ジャンル向け 初回DM`;
-    const text = body(name.split(" ")[0]);
-    const { id: tid } = await one(
-      `INSERT INTO templates (user_id, title, body, version, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, 1, 1, $4, $4) RETURNING id`,
-      [userId, title, text, nowIso()],
-    );
-    await q(
-      `INSERT INTO template_revisions (template_id, version, title, body, note, changed_by, changed_at)
-       VALUES ($1, 1, $2, $3, '初版', $4, $5)`,
-      [tid, title, text, admin.id, nowIso()],
-    );
+    const genre = pick(GENRES);
+    for (const [kind, title, text] of [
+      ["dm", `${genre}ジャンル向け 初回DM`, body(name.split(" ")[0])],
+      ["reply", `${genre}ジャンル向け 返信後トーク`, replyBody(name.split(" ")[0])],
+    ]) {
+      const { id: tid } = await one(
+        `INSERT INTO templates (user_id, title, body, kind, version, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 1, 1, $5, $5) RETURNING id`,
+        [userId, title, text, kind, nowIso()],
+      );
+      await q(
+        `INSERT INTO template_revisions (template_id, version, title, body, note, changed_by, changed_at)
+         VALUES ($1, 1, $2, $3, '初版', $4, $5)`,
+        [tid, title, text, admin.id, nowIso()],
+      );
+    }
 
     // 人によって返信率のベースを変える（アラートの動作確認用に低い人も混ぜる）
     const baseRate = [0.12, 0.09, 0.11, 0.04, 0.15, 0.07, 0.1, 0.03, 0.13, 0.08][i];

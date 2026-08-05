@@ -18,7 +18,7 @@ import {
   getTemplate,
   getUserByLoginId,
 } from "@/lib/queries";
-import { deriveStage } from "@/lib/types";
+import { deriveStage, type TemplateKind } from "@/lib/types";
 
 /* ------------------------------------------------------------- helpers */
 
@@ -190,6 +190,7 @@ export async function saveTemplate(fd: FormData) {
   const title = str(fd, "title");
   const body = String(fd.get("body") ?? "");
   const note = str(fd, "note");
+  const kind: TemplateKind = str(fd, "kind") === "reply" ? "reply" : "dm";
   if (!title || !body.trim()) {
     back(
       returnTo(fd, "/templates"),
@@ -206,14 +207,18 @@ export async function saveTemplate(fd: FormData) {
     assertCanAccessUser(user, current.user_id);
 
     const dest = returnTo(fd, `/templates/${id}`);
-    if (current.title === title && current.body === body) {
+    if (
+      current.title === title &&
+      current.body === body &&
+      current.kind === kind
+    ) {
       back(dest, "変更内容がありません。", "err");
     }
     const version = current.version + 1;
     await transaction(async (tx) => {
       await tx.exec(
-        "UPDATE templates SET title = ?, body = ?, version = ?, updated_at = ? WHERE id = ?",
-        [title, body, version, ts, id],
+        "UPDATE templates SET title = ?, body = ?, kind = ?, version = ?, updated_at = ? WHERE id = ?",
+        [title, body, kind, version, ts, id],
       );
       await tx.exec(
         `INSERT INTO template_revisions (template_id, version, title, body, note, changed_by, changed_at)
@@ -226,9 +231,9 @@ export async function saveTemplate(fd: FormData) {
 
   const newId = await transaction(async (tx) => {
     const [row] = await tx.query<{ id: number }>(
-      `INSERT INTO templates (user_id, title, body, version, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, 1, 1, ?, ?) RETURNING id`,
-      [targetUserId, title, body, ts, ts],
+      `INSERT INTO templates (user_id, title, body, kind, version, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 1, 1, ?, ?) RETURNING id`,
+      [targetUserId, title, body, kind, ts, ts],
     );
     await tx.exec(
       `INSERT INTO template_revisions (template_id, version, title, body, note, changed_by, changed_at)
