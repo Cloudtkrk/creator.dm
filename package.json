@@ -9,7 +9,8 @@
     "lint": "next lint",
     "seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.mjs",
     "seed:demo": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.mjs --demo",
-    "restore": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/restore.mjs"
+    "restore": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/restore.mjs",
+    "reset-password": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/reset-password.mjs"
   },
   "dependencies": {
     "next": "^16.3.0",

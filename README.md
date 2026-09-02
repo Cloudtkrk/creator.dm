@@ -103,6 +103,7 @@ npm run seed:demo       # 運用者 op01〜op10 / パスワード password1234
 | `SEED_ADMIN_LOGIN_ID` / `SEED_ADMIN_PASSWORD` | `npm run seed` で作る初期管理者。画面からセットアップする場合は不要です |
 | `DB_POOL_MAX` | 接続プールの上限（既定 5）。通常は変更不要です |
 | `CRON_SECRET` | 日次バックアップの実行APIを保護する任意の文字列。設定すると Vercel からの呼び出しだけを受け付けます |
+| `ADMIN_RESET_TOKEN` | 管理者ログインの復旧画面（`/recover`）を開くための合言葉。**普段は設定しないでください**（未設定なら画面ごと存在しません） |
 
 ## 運用のながれ
 
@@ -208,6 +209,37 @@ npm run restore -- backup.json --apply   # 実際に復元する
 
 仮の管理者は復元時に上書きされて消えるため、引っ越し後は元のIDとパスワードでログインします。
 リードやアカウントのID（採番）も引き継がれるので、そのまま運用を続けられます。
+
+## 管理者のログインが分からなくなったとき
+
+ログインは**メールアドレスではなくログインID**です。パスワードは scrypt で
+ハッシュ化して保存しているため、データベースを見ても元の文字列は分かりません。
+**思い出すのではなく、設定し直します。**
+
+### 画面から復旧する
+
+1. Vercel の **Settings → Environment Variables** に `ADMIN_RESET_TOKEN` を追加する
+   （16文字以上のランダムな文字列。Production にチェック）
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+   ```
+2. **Deployments → Redeploy** で再デプロイする
+3. `https://<本番URL>/recover` を開き、1で設定した合言葉を入力する
+4. 登録されているログインIDの一覧が出るので、対象のIDに新しいパスワードを設定する
+   （そのままログインした状態になります）
+5. **`ADMIN_RESET_TOKEN` を削除して再デプロイする**
+
+`ADMIN_RESET_TOKEN` が未設定のとき、`/recover` は 404 になり存在しません。
+復旧が終わったら必ず消してください。
+
+### ターミナルから復旧する
+
+`DATABASE_URL` が手元にある場合は、こちらのほうが簡単です。
+
+```bash
+npm run reset-password                          # 登録されているIDの一覧
+npm run reset-password -- admin 新しいパスワード   # パスワードを設定し直す
+```
 
 ## 表示を速く保つための決まりごと
 
