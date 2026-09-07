@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { formatMonth, monthRange, thisMonth, today } from "@/lib/date";
 import {
+  countLeadsOnDate,
   getLead,
   leadCounts,
   listAccounts,
@@ -10,7 +11,12 @@ import {
 } from "@/lib/queries";
 import { LEAD_STAGE_LABEL, type LeadStage } from "@/lib/types";
 import { Flash, Funnel } from "@/components/ui";
-import { deleteLead, saveLead, setLeadMilestone } from "@/app/actions";
+import {
+  deleteLead,
+  saveLead,
+  setLeadMilestone,
+  shiftLeadDates,
+} from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +66,8 @@ export default async function LeadsPage({
     q?: string;
     edit?: string;
     page?: string;
+    as_of?: string;
+    fix?: string;
     msg?: string;
     t?: string;
   }>;
@@ -67,13 +75,19 @@ export default async function LeadsPage({
   const me = await requireAdmin();
   const sp = await searchParams;
 
+  // ワンクリックの記録に使う日付。過去の分をまとめて入力するときに変えられる。
+  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(sp.as_of ?? "") ? sp.as_of! : today();
+
   const filterUser = Number(sp.user) || undefined;
   const page = Math.max(1, Number(sp.page) || 1);
   const month = thisMonth();
   const { start, end } = monthRange(month);
 
+  // 付け替え画面の初期値。今日の分を直したい場面がほとんどなので既定は今日。
+  const fixFrom = /^\d{4}-\d{2}-\d{2}$/.test(sp.fix ?? "") ? sp.fix! : today();
+
   // 順番に await すると1本ずつ往復して待ち時間が積み上がるため、まとめて投げる
-  const [users, leadPage, accounts, editable, counts, monthTotals] =
+  const [users, leadPage, accounts, editable, counts, monthTotals, onFixDate] =
     await Promise.all([
       listUsers(),
       listLeadsPage(
@@ -88,6 +102,7 @@ export default async function LeadsPage({
       sp.edit ? getLead(Number(sp.edit)) : Promise.resolve(null),
       leadCounts(start, end),
       totalsInRange(start, end),
+      countLeadsOnDate(fixFrom),
     ]);
   const { leads, total, pages } = leadPage;
   const operators = users.filter((u) => u.role === "operator");
@@ -100,9 +115,13 @@ export default async function LeadsPage({
     if (sp.user) q.set("user", sp.user);
     if (sp.stage) q.set("stage", sp.stage);
     if (sp.q) q.set("q", sp.q);
+    if (sp.as_of) q.set("as_of", sp.as_of);
+    if (sp.fix) q.set("fix", sp.fix);
     q.set("page", String(n));
     return `/leads?${q}`;
   };
+  // ワンクリック記録のあと、同じ絞り込み・同じページに戻ってくるようにする
+  const listHref = pageHref(page);
 
   return (
     <>
@@ -272,12 +291,99 @@ export default async function LeadsPage({
       <div className="card">
         <div className="card-head">
           <div>
+            <h2>記録日をまとめて付け替える</h2>
+            <p>
+              一覧のボタンで記録すると、その日の日付が入ります。前の月の分をまとめて
+              入力したときなど、<strong>あとから正しい日付に直せます。</strong>
+              日付が変わると<strong>報酬の集計月も変わります。</strong>
+            </p>
+          </div>
+        </div>
+
+        <form className="toolbar" style={{ marginBottom: 10 }}>
+          <label className="field">
+            <span>いつ付けの記録を直すか</span>
+            <input type="date" name="fix" defaultValue={fixFrom} max={today()} />
+          </label>
+          {sp.user ? <input type="hidden" name="user" value={sp.user} /> : null}
+          {sp.stage ? <input type="hidden" name="stage" value={sp.stage} /> : null}
+          {sp.q ? <input type="hidden" name="q" value={sp.q} /> : null}
+          <button className="btn" type="submit">
+            件数を確認
+          </button>
+        </form>
+
+        <div className="grid cols-3" style={{ marginBottom: 12 }}>
+          <div className="count-tile">
+            <span>LINE誘導</span>
+            <strong>{onFixDate.guided.toLocaleString("ja-JP")}件</strong>
+          </div>
+          <div className="count-tile">
+            <span>LINE登録</span>
+            <strong>{onFixDate.line.toLocaleString("ja-JP")}件</strong>
+          </div>
+          <div className="count-tile">
+            <span>面談実施</span>
+            <strong>{onFixDate.meeting.toLocaleString("ja-JP")}件</strong>
+          </div>
+        </div>
+
+        {onFixDate.guided + onFixDate.line + onFixDate.meeting === 0 ? (
+          <div className="empty">{fixFrom} 付けの記録はありません。</div>
+        ) : (
+          <form action={shiftLeadDates}>
+            <input type="hidden" name="from_date" value={fixFrom} />
+            <input type="hidden" name="back_to" value={pageHref(page)} />
+            <div className="toolbar">
+              <label className="field">
+                <span>変更前</span>
+                <input type="date" value={fixFrom} disabled />
+              </label>
+              <label className="field">
+                <span>変更後の日付</span>
+                <input type="date" name="to_date" max={today()} required />
+              </label>
+            </div>
+            <div className="milestones">
+              <Check name="field_line" label={`LINE登録 ${onFixDate.line}件`} checked />
+              <Check
+                name="field_meeting"
+                label={`面談実施 ${onFixDate.meeting}件`}
+                checked
+              />
+              <Check
+                name="field_guided"
+                label={`LINE誘導 ${onFixDate.guided}件`}
+                checked={false}
+              />
+            </div>
+            <div className="toolbar" style={{ marginTop: 10 }}>
+              <button className="btn primary" type="submit">
+                チェックした記録を変更後の日付に付け替える
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <div>
             <h2>リード一覧</h2>
             <p>
               全{total.toLocaleString("ja-JP")}件。日付をクリックすると記録を取り消せます。
+              ボタンで記録する日付は
+              <strong>
+                {asOf === today() ? `今日（${asOf}）` : asOf}
+              </strong>
+              です。
             </p>
           </div>
           <form className="toolbar">
+            <label className="field">
+              <span>記録する日付</span>
+              <input type="date" name="as_of" defaultValue={asOf} max={today()} />
+            </label>
             <label className="field">
               <span>運用者</span>
               <select name="user" defaultValue={String(filterUser ?? "")}>
@@ -353,6 +459,8 @@ export default async function LeadsPage({
                       field="line"
                       date={l.line_at}
                       onLabel="LINE登録"
+                      asOf={asOf}
+                      backTo={listHref}
                     />
                   </td>
                   <td>
@@ -361,6 +469,8 @@ export default async function LeadsPage({
                       field="meeting"
                       date={l.meeting_at}
                       onLabel="面談済"
+                      asOf={asOf}
+                      backTo={listHref}
                     />
                   </td>
                   <td>
@@ -437,17 +547,24 @@ function MilestoneCell({
   field,
   date,
   onLabel,
+  asOf,
+  backTo,
 }: {
   leadId: number;
   field: "guided" | "line" | "meeting";
   date: string | null;
   onLabel: string;
+  /** 記録する日付。既定は今日だが、過去の分をまとめて入れるときに変えられる */
+  asOf: string;
+  backTo: string;
 }) {
   return (
     <form action={setLeadMilestone} className="inline-form">
       <input type="hidden" name="id" value={leadId} />
       <input type="hidden" name="field" value={field} />
       <input type="hidden" name="on" value={date ? "0" : "1"} />
+      <input type="hidden" name="as_of" value={asOf} />
+      <input type="hidden" name="back_to" value={backTo} />
       {date ? (
         <button
           className="btn small done"

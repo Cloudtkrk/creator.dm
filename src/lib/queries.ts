@@ -327,6 +327,28 @@ export const leadCounts = cache(async function leadCounts(
   };
 });
 
+/**
+ * ちょうどその日付で記録されているリードの件数。
+ * ワンクリックの記録は今日の日付が入るため、日付を付け直すときの確認に使う。
+ */
+export const countLeadsOnDate = cache(async function countLeadsOnDate(
+  date: string,
+): Promise<LeadCounts> {
+  const row = await queryOne<Partial<LeadCounts>>(
+    `SELECT
+       SUM(CASE WHEN line_guided_at = ? THEN 1 ELSE 0 END) AS guided,
+       SUM(CASE WHEN line_at        = ? THEN 1 ELSE 0 END) AS line,
+       SUM(CASE WHEN meeting_at     = ? THEN 1 ELSE 0 END) AS meeting
+     FROM leads`,
+    [date, date, date],
+  );
+  return {
+    guided: row?.guided ?? 0,
+    line: row?.line ?? 0,
+    meeting: row?.meeting ?? 0,
+  };
+});
+
 /* ----------------------------------------------------------------- 報酬 */
 
 export type RewardBreakdown = {

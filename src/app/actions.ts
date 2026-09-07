@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { exec, queryOne, setSetting, transaction } from "@/lib/db";
+import { exec, query, queryOne, setSetting, transaction } from "@/lib/db";
 import { nowIso, today } from "@/lib/date";
 import {
   assertCanAccessUser,
@@ -33,6 +33,9 @@ const intOrNull = (fd: FormData, key: string) => {
   return v ? Number(v) : null;
 };
 const dateOrNull = (fd: FormData, key: string) => str(fd, key) || null;
+
+/** YYYY-MM-DD の形をしているものだけ通す。 */
+const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** 処理結果をクエリに載せて元の画面に戻す。path はクエリ付きでもよい。 */
 function back(path: string, message: string, type: "ok" | "err" = "ok"): never {
@@ -453,6 +456,11 @@ export async function setLeadMilestone(fd: FormData) {
   if (!lead) back(home, "リードが見つかりません。", "err");
   assertCanAccessUser(user, lead.user_id);
 
+  // 記録日を明示できるようにしておく。指定がなければ今日。
+  // これがないと、過去の分をまとめて記録したときに全部その日の日付になる。
+  const asOfRaw = str(fd, "as_of");
+  const asOf = isDate(asOfRaw) ? asOfRaw : today();
+
   const dates = {
     guidedAt: lead.line_guided_at,
     lineAt: lead.line_at,
@@ -461,7 +469,7 @@ export async function setLeadMilestone(fd: FormData) {
   const key = (
     { guided: "guidedAt", line: "lineAt", meeting: "meetingAt" } as const
   )[field];
-  dates[key] = on ? (lead[MILESTONE_COLUMN[field]] ?? today()) : null;
+  dates[key] = on ? (lead[MILESTONE_COLUMN[field]] ?? asOf) : null;
 
   await exec(
     `UPDATE leads SET ${MILESTONE_COLUMN[field]} = ?, stage = ?, updated_at = ? WHERE id = ?`,
@@ -476,6 +484,52 @@ export async function setLeadMilestone(fd: FormData) {
     home,
     `@${lead.creator_handle} を${MILESTONE_LABEL[field]}${on ? "済み" : "未"}にしました。`,
   );
+}
+
+/**
+ * ある日付で記録されている到達日を、まとめて別の日付に付け替える。
+ *
+ * ワンクリックの記録は今日の日付が入るため、前月分をまとめて入力すると
+ * 全部その日の日付になってしまう。月をまたぐと報酬の集計月も変わるので、
+ * あとから正しい日付に直せるようにしておく。
+ *
+ * 到達したかどうか（stage）は日付の有無で決まるため、日付の付け替えでは変わらない。
+ */
+export async function shiftLeadDates(fd: FormData) {
+  await requireAdmin();
+  const home = returnTo(fd, "/leads");
+
+  const from = str(fd, "from_date");
+  const to = str(fd, "to_date");
+  if (!isDate(from) || !isDate(to)) {
+    back(home, "変更前と変更後の日付を選んでください。", "err");
+  }
+  if (from === to) back(home, "変更前と変更後が同じ日付です。", "err");
+
+  // チェックボックスは hidden の 0 と併記しているため isChecked で読む
+  const fields = (["guided", "line", "meeting"] as const).filter((f) =>
+    isChecked(fd, `field_${f}`),
+  );
+  if (fields.length === 0) {
+    back(home, "付け替える対象（LINE登録・面談など）を選んでください。", "err");
+  }
+
+  const changed: string[] = [];
+  for (const f of fields) {
+    const col = MILESTONE_COLUMN[f];
+    const rows = await query<{ id: number }>(
+      `UPDATE leads SET ${col} = ?, updated_at = ? WHERE ${col} = ? RETURNING id`,
+      [to, nowIso(), from],
+    );
+    if (rows.length > 0) {
+      changed.push(`${MILESTONE_LABEL[f]} ${rows.length}件`);
+    }
+  }
+
+  if (changed.length === 0) {
+    back(home, `${from} 付けの記録は見つかりませんでした。`, "err");
+  }
+  back(home, `${from} → ${to} に付け替えました（${changed.join(" / ")}）。`);
 }
 
 export async function deleteLead(fd: FormData) {
