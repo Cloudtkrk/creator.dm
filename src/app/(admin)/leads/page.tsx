@@ -12,6 +12,7 @@ import {
 import { LEAD_STAGE_LABEL, type LeadStage } from "@/lib/types";
 import { Flash, Funnel } from "@/components/ui";
 import {
+  bulkSetLeadMilestone,
   deleteLead,
   saveLead,
   setLeadMilestone,
@@ -284,6 +285,61 @@ export default async function LeadsPage({
                 キャンセル
               </a>
             ) : null}
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <h2>一括で記録する</h2>
+            <p>
+              クリエイターIDを貼り付けて、LINE登録や面談をまとめて記録します。
+              スプレッドシートで突き合わせた結果を取り込むときに使ってください。
+              <strong>既に日付が入っているものは飛ばす</strong>ので、
+              二重に実行しても重複しません。
+            </p>
+          </div>
+        </div>
+        <form action={bulkSetLeadMilestone}>
+          <input type="hidden" name="back_to" value={listHref} />
+          <div className="toolbar" style={{ marginBottom: 10 }}>
+            <label className="field">
+              <span>記録する項目</span>
+              <select name="field" defaultValue="line">
+                <option value="line">LINE登録</option>
+                <option value="meeting">面談実施</option>
+                <option value="guided">LINE誘導</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>記録する日付</span>
+              <input type="date" name="date" defaultValue={asOf} required />
+            </label>
+          </div>
+          <label className="field">
+            <span>クリエイターID（1行に1件）</span>
+            <textarea
+              name="handles"
+              rows={6}
+              placeholder={"black.stones.726\nwaka_rakuraku\nac_uyu\t2026-10-05"}
+            />
+            <span className="muted" style={{ fontWeight: 400 }}>
+              @は付けても付けなくても構いません。大文字小文字は区別しません。
+              IDのあとにタブかスペースを空けて日付を書くと、その行だけ別の日付で記録します。
+            </span>
+          </label>
+          <div className="milestones">
+            <Check
+              name="overwrite"
+              label="既に日付が入っているものも上書きする"
+              checked={false}
+            />
+          </div>
+          <div className="toolbar" style={{ marginTop: 10 }}>
+            <button className="btn primary" type="submit">
+              この内容で記録する
+            </button>
           </div>
         </form>
       </div>

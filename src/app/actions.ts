@@ -532,6 +532,106 @@ export async function shiftLeadDates(fd: FormData) {
   back(home, `${from} → ${to} に付け替えました（${changed.join(" / ")}）。`);
 }
 
+/**
+ * 到達したあとの stage を求める SQL。日付を足したら状態も合わせて進める。
+ * 見送り（lost）は手で付けたものなので触らない。
+ */
+const STAGE_SQL = {
+  guided: `CASE WHEN stage = 'lost' THEN 'lost'
+                WHEN meeting_at IS NOT NULL THEN 'meeting'
+                WHEN line_at IS NOT NULL THEN 'line'
+                ELSE 'guided' END`,
+  line: `CASE WHEN stage = 'lost' THEN 'lost'
+              WHEN meeting_at IS NOT NULL THEN 'meeting'
+              ELSE 'line' END`,
+  meeting: `CASE WHEN stage = 'lost' THEN 'lost' ELSE 'meeting' END`,
+} as const;
+
+/** 「@name」「name<TAB>2026-09-30」どちらの書き方でも受け取れるようにする。 */
+function parseHandleLines(
+  text: string,
+  fallbackDate: string,
+): { handle: string; date: string }[] {
+  const out: { handle: string; date: string }[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const [first, second] = line.split(/[\t,\s]+/);
+    const handle = first.replace(/^@/, "").trim();
+    if (!handle) continue;
+    const date = second && isDate(second) ? second : fallbackDate;
+    out.push({ handle, date });
+  }
+  return out;
+}
+
+/**
+ * クリエイターIDの一覧を貼り付けて、LINE登録・面談などをまとめて記録する。
+ *
+ * 毎月スプレッドシートで突き合わせた結果を取り込むための入口。
+ * 既に日付が入っているものは既定で飛ばす（二重に実行しても壊れない）。
+ */
+export async function bulkSetLeadMilestone(fd: FormData) {
+  await requireAdmin();
+  const home = returnTo(fd, "/leads");
+
+  const field = str(fd, "field") as keyof typeof MILESTONE_COLUMN;
+  if (!(field in MILESTONE_COLUMN)) back(home, "不正な操作です。", "err");
+
+  const date = str(fd, "date");
+  if (!isDate(date)) back(home, "記録する日付を選んでください。", "err");
+
+  const overwrite = isChecked(fd, "overwrite");
+  const rows = parseHandleLines(str(fd, "handles"), date);
+  if (rows.length === 0) back(home, "クリエイターIDを入力してください。", "err");
+  if (rows.length > 2000) {
+    back(home, "一度に取り込めるのは2000件までです。", "err");
+  }
+
+  const col = MILESTONE_COLUMN[field];
+
+  // 同じ日付でまとめて1本のUPDATEにする（1件ずつ実行すると件数分の往復になる）
+  const byDate = new Map<string, string[]>();
+  for (const r of rows) {
+    byDate.set(r.date, [...(byDate.get(r.date) ?? []), r.handle.toLowerCase()]);
+  }
+
+  const updated = new Set<string>();
+  for (const [d, handles] of byDate) {
+    const hit = await query<{ creator_handle: string }>(
+      `UPDATE leads SET ${col} = ?, stage = ${STAGE_SQL[field]}, updated_at = ?
+        WHERE lower(creator_handle) = ANY(?)
+          ${overwrite ? "" : `AND ${col} IS NULL`}
+        RETURNING creator_handle`,
+      [d, nowIso(), handles],
+    );
+    for (const r of hit) updated.add(r.creator_handle.toLowerCase());
+  }
+
+  // 入力したIDのうち、そもそも登録がないものを拾う（打ち間違いの発見用）
+  const all = [...new Set(rows.map((r) => r.handle.toLowerCase()))];
+  const known = await query<{ creator_handle: string }>(
+    "SELECT DISTINCT creator_handle FROM leads WHERE lower(creator_handle) = ANY(?)",
+    [all],
+  );
+  const knownSet = new Set(known.map((r) => r.creator_handle.toLowerCase()));
+  const missing = all.filter((h) => !knownSet.has(h));
+  const skipped = all.filter((h) => knownSet.has(h) && !updated.has(h));
+
+  const parts = [`${MILESTONE_LABEL[field]}を${updated.size}件に記録しました`];
+  if (skipped.length > 0) {
+    parts.push(
+      `既に日付が入っていた${skipped.length}件はそのまま（${skipped.slice(0, 5).join(" ")}${skipped.length > 5 ? " ほか" : ""}）`,
+    );
+  }
+  if (missing.length > 0) {
+    parts.push(
+      `登録が見つからない${missing.length}件（${missing.slice(0, 8).join(" ")}${missing.length > 8 ? " ほか" : ""}）`,
+    );
+  }
+  back(home, parts.join(" / ") + "。", missing.length > 0 ? "err" : "ok");
+}
+
 export async function deleteLead(fd: FormData) {
   const user = await requireUser();
   const id = num(fd, "id");
